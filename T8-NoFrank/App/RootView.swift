@@ -15,7 +15,7 @@ struct RootView: View {
             switch router.currentScreen {
             case .home: HomeView()
             case .breakingStone: BreakingStoneView()
-            case .stonedust: StoneDustView()
+            case .blowAwayStone: BlowAwayStoneView()
             }
         }
     }

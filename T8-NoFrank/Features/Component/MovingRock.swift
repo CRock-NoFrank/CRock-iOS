@@ -199,7 +199,7 @@ struct MovingRock: View {
                         )
                     }
                    
-                    AppRouter.shared.navigate(.stonedust)
+                    AppRouter.shared.navigate(.blowAwayStone)
                 } else {
                     rockPhase += 1
                     rockPhaseCount = 0

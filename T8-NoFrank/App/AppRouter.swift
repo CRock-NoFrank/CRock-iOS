@@ -11,7 +11,7 @@ import SwiftUI
 enum AppScreen {
     case home
     case breakingStone
-    case stonedust
+    case blowAwayStone
 }
 
 @MainActor

@@ -1,5 +1,5 @@
 //
-//  StoneDustView.swift
+//  BlowAwayStoneView.swift
 //  T8-NoFrank
 //
 //  Created by JiJooMaeng on 8/8/25.
@@ -8,7 +8,7 @@
 import SwiftUI
 
 
-struct StoneDustView: View {
+struct BlowAwayStoneView: View {
     @State private var blowDetector = BlowDetector()
     
     @State private var triggerActivated = false
@@ -114,5 +114,5 @@ struct StoneDustView: View {
 }
 
 #Preview {
-    StoneDustView()
+    BlowAwayStoneView()
 }
