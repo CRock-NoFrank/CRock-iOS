@@ -49,7 +49,7 @@ struct AlarmSettingView: View {
                             .padding(.bottom, 17)
                         HStack {
                             ForEach($days, id: \.name) { $day in
-                                DatePickButton(
+                                WeekdayToggleButton(
                                     title: day.name,
                                     isSelected: $day.isSelected
                                 )
