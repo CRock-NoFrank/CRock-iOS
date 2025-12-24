@@ -9,7 +9,6 @@ import SwiftUI
 import UserNotifications
 
 struct NotificationService {
-
     // MARK: -- 권한 설정 함수
     static func requestAuthorization() {
         UNUserNotificationCenter.current()
@@ -47,7 +46,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 }
 
 // MARK: -- 노티 삭제 서비스
-struct AlarmCancelService {
+extension NotificationService {
 
     // 모든 노티 제거
     static func cancelWeeklyBurstAll(

@@ -9,7 +9,6 @@ import SwiftUI
 import UserNotifications
 
 extension NotificationService {
-
     //MARK: -- 선택한 요일에 요일당 8개의 노티 생성 (매주 반복)
     static func scheduleWeeklyBurst(
         weekdays: Set<Int>,

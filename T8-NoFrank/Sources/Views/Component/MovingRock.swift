@@ -205,7 +205,7 @@ struct MovingRock: View {
                         var hour: Int {
                             min / 60 + h
                         }
-                        AlarmCancelService.cancelTodayBurst(
+                        NotificationService.cancelTodayBurst(
                             hour: h % 24,
                             minute: min % 60,
                             second: sec % 60,
