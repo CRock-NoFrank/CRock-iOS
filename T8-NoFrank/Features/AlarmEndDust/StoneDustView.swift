@@ -9,7 +9,8 @@ import SwiftUI
 
 
 struct StoneDustView: View {
-    @State private var blowDetection = BlowDetection()
+    @State private var blowDetector = BlowDetector()
+    
     @State private var triggerActivated = false
     @State private var dustOffset: CGFloat = 0
     @State private var newStoneOffset: CGFloat = 400
@@ -36,19 +37,19 @@ struct StoneDustView: View {
             ZStack {
                 VStack {
                     Group {
-                        if blowDetection.blowStage == 0 {
+                        if blowDetector.blowStage == 0 {
                             Image("stoneDust")
-                        } else if blowDetection.blowStage == 1 {
+                        } else if blowDetector.blowStage == 1 {
                             Image("stoneDustA1")
                             Image("stoneDustA2")
                                 .offset(x: a2Offset * 2 - 20, y: a2Offset * 2 - 100)
                                 .opacity(1.0 - min(1.0, Double(abs(a2Offset / 100))))
-                        } else if blowDetection.blowStage == 2 {
+                        } else if blowDetector.blowStage == 2 {
                             Image("stoneDustB1")
                             Image("stoneDustB2")
                                 .offset(x: -b2Offset * 2 - 60, y: b2Offset * 2 - 100)
                                 .opacity(1.0 - min(1.0, Double(abs(b2Offset / 100))))
-                        } else if blowDetection.blowStage == 3 {
+                        } else if blowDetector.blowStage == 3 {
                             Image("stoneDustB1")
                                 .offset(x: dustOffset)
                                 .opacity(1.0 - min(1.0, Double(abs(dustOffset / 300))))
@@ -70,7 +71,7 @@ struct StoneDustView: View {
                 .padding(.top, 359)
             }
         }
-        .onChange(of: blowDetection.blowStage) { _, stage in
+        .onChange(of: blowDetector.blowStage) { _, stage in
             switch stage {
             case 1:
                 withAnimation(.easeOut(duration: 1.5)) {
@@ -88,7 +89,7 @@ struct StoneDustView: View {
                         newStoneOpacity = 1
                         triggerActivated = true
                     }
-                    blowDetection.stop()
+                    blowDetector.stop()
                     
                     try? await Task.sleep(for: .seconds(2))
                     AppRouter.shared.navigate(.home)
@@ -98,7 +99,7 @@ struct StoneDustView: View {
             }
         }
         .onDisappear {
-            blowDetection.stop()
+            blowDetector.stop()
         }
         .onAppear {
             triggerActivated = false
@@ -107,7 +108,7 @@ struct StoneDustView: View {
             newStoneOpacity = 0
             a2Offset = 0
             b2Offset = 0
-            blowDetection.start()
+            blowDetector.start()
         }
     }
 }

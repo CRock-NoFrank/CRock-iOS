@@ -10,7 +10,7 @@ import Foundation
 import AVFoundation
 
 @Observable
-final class BlowDetection {
+final class BlowDetector {
     private var recorder: AVAudioRecorder?
     private var timer: Timer?
     private var currentStageBlowTime: Double = 0.0
