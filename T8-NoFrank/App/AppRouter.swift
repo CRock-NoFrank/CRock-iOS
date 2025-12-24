@@ -10,7 +10,7 @@ import SwiftUI
 
 enum AppScreen {
     case home
-    case turnOffAlarm
+    case breakingStone
     case stonedust
 }
 

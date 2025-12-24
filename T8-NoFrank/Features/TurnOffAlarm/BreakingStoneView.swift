@@ -1,5 +1,5 @@
 //
-//  TurnOffAlarmView.swift
+//  BreakingStoneView.swift
 //  T8-NoFrank
 //
 //  Created by 문창재 on 8/9/25.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct TurnOffAlarmView: View {
+struct BreakingStoneView: View {
     @State private var alarmHour: Int = 0
     @State private var alarmMinute: Int = 0
     
@@ -39,5 +39,5 @@ struct TurnOffAlarmView: View {
 }
 
 #Preview {
-    TurnOffAlarmView()
+    BreakingStoneView()
 }

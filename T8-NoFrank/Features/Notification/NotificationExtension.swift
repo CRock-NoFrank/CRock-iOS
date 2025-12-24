@@ -130,7 +130,7 @@ extension NotificationDelegate {
         print("알림 제거 완료")
         
         Task { @MainActor in
-            AppRouter.shared.navigate(.turnOffAlarm)
+            AppRouter.shared.navigate(.breakingStone)
         }
         completionHandler()
     }

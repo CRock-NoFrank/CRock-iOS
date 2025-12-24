@@ -14,7 +14,7 @@ struct RootView: View {
         Group {
             switch router.currentScreen {
             case .home: HomeView()
-            case .turnOffAlarm: TurnOffAlarmView()
+            case .breakingStone: BreakingStoneView()
             case .stonedust: StoneDustView()
             }
         }
