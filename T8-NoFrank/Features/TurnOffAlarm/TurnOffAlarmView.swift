@@ -25,7 +25,7 @@ struct TurnOffAlarmView: View {
                 Color.black
                     .opacity(0.7)
                     .edgesIgnoringSafeArea(.all)
-                    MovingRockView(isBreakable: true)
+                    MovingRock(isBreakable: true)
             }
         }
         .onAppear {

@@ -50,7 +50,7 @@ struct HomeView: View {
                 .overlay(
                     Group {
                         if isEnabled {
-                            MovingRockView(isBreakable: false)
+                            MovingRock(isBreakable: false)
                         }
                     }
                 )

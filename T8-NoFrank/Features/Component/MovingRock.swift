@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 import QuartzCore
 
-struct MovingRockView: View {
+struct MovingRock: View {
     @State var isBreakable: Bool
     @State var isClockEnd: Bool = false
     
