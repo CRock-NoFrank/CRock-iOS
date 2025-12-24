@@ -10,7 +10,7 @@ import SwiftUI
 struct DatePickButton: View {
     let title: String
     @Binding var isSelected: Bool
-    
+
     var body: some View {
         Button(action: {
             isSelected.toggle()

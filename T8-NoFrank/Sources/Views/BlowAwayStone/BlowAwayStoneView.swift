@@ -7,17 +7,16 @@
 
 import SwiftUI
 
-
 struct BlowAwayStoneView: View {
     @State private var blowDetector = BlowDetector()
-    
+
     @State private var triggerActivated = false
     @State private var dustOffset: CGFloat = 0
     @State private var newStoneOffset: CGFloat = 400
     @State private var newStoneOpacity: Double = 0
     @State private var a2Offset: CGFloat = 0
     @State private var b2Offset: CGFloat = 0
-    
+
     var body: some View {
         ZStack {
             Image("Home_Background")
@@ -25,15 +24,15 @@ struct BlowAwayStoneView: View {
                 .opacity(0.7)
                 .edgesIgnoringSafeArea(.all)
             VStack {
-                    if !triggerActivated {
-                        Text("돌이 깨졌어요")
-                            .font(.body01Bold)
-                            .foregroundStyle(.white)
-                            .padding(.top, 139)
-                    }
-                    Spacer()
+                if !triggerActivated {
+                    Text("돌이 깨졌어요")
+                        .font(.body01Bold)
+                        .foregroundStyle(.white)
+                        .padding(.top, 139)
                 }
-            
+                Spacer()
+            }
+
             ZStack {
                 VStack {
                     Group {
@@ -42,17 +41,33 @@ struct BlowAwayStoneView: View {
                         } else if blowDetector.blowStage == 1 {
                             Image("stoneDustA1")
                             Image("stoneDustA2")
-                                .offset(x: a2Offset * 2 - 20, y: a2Offset * 2 - 100)
-                                .opacity(1.0 - min(1.0, Double(abs(a2Offset / 100))))
+                                .offset(
+                                    x: a2Offset * 2 - 20,
+                                    y: a2Offset * 2 - 100
+                                )
+                                .opacity(
+                                    1.0 - min(1.0, Double(abs(a2Offset / 100)))
+                                )
                         } else if blowDetector.blowStage == 2 {
                             Image("stoneDustB1")
                             Image("stoneDustB2")
-                                .offset(x: -b2Offset * 2 - 60, y: b2Offset * 2 - 100)
-                                .opacity(1.0 - min(1.0, Double(abs(b2Offset / 100))))
+                                .offset(
+                                    x: -b2Offset * 2 - 60,
+                                    y: b2Offset * 2 - 100
+                                )
+                                .opacity(
+                                    1.0 - min(1.0, Double(abs(b2Offset / 100)))
+                                )
                         } else if blowDetector.blowStage == 3 {
                             Image("stoneDustB1")
                                 .offset(x: dustOffset)
-                                .opacity(1.0 - min(1.0, Double(abs(dustOffset / 300))))
+                                .opacity(
+                                    1.0
+                                        - min(
+                                            1.0,
+                                            Double(abs(dustOffset / 300))
+                                        )
+                                )
                         }
                     }
                     Spacer()
@@ -90,7 +105,7 @@ struct BlowAwayStoneView: View {
                         triggerActivated = true
                     }
                     blowDetector.stop()
-                    
+
                     try? await Task.sleep(for: .seconds(2))
                     AppRouter.shared.navigate(.home)
                 }

@@ -12,7 +12,7 @@ struct T8_NoFrankApp: App {
     @StateObject private var router = AppRouter.shared
     @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    
+
     var body: some Scene {
         WindowGroup {
             RootView()

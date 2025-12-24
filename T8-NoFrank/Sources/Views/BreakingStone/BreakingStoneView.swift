@@ -10,7 +10,7 @@ import SwiftUI
 struct BreakingStoneView: View {
     @State private var alarmHour: Int = 0
     @State private var alarmMinute: Int = 0
-    
+
     var body: some View {
         VStack {
             ZStack {
@@ -25,12 +25,15 @@ struct BreakingStoneView: View {
                 Color.black
                     .opacity(0.7)
                     .edgesIgnoringSafeArea(.all)
-                    MovingRock(isBreakable: true)
+                MovingRock(isBreakable: true)
             }
         }
         .onAppear {
-            if let hour = UserDefaults(suiteName: AppConstants.appGroupID)?.object(forKey: "alarmHour") as? Int,
-               let minute = UserDefaults(suiteName: AppConstants.appGroupID)?.object(forKey: "alarmMinute") as? Int {
+            if let hour = UserDefaults(suiteName: AppConstants.appGroupID)?
+                .object(forKey: "alarmHour") as? Int,
+                let minute = UserDefaults(suiteName: AppConstants.appGroupID)?
+                    .object(forKey: "alarmMinute") as? Int
+            {
                 alarmHour = hour
                 alarmMinute = minute
             }

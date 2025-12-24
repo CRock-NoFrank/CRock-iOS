@@ -1,6 +1,6 @@
+import CoreGraphics
 import CoreMotion
 import Foundation
-import CoreGraphics
 
 final class MotionManager {
     let shakeDegreesStream: AsyncStream<Int>
@@ -15,7 +15,7 @@ final class MotionManager {
 
     private let startThreshold: Double
     private let referenceFrame: CMAttitudeReferenceFrame
-    
+
     private let motionManager = CMMotionManager()
 
     init(
@@ -51,7 +51,7 @@ final class MotionManager {
         shakeCooldown: TimeInterval = 0.01,
     ) {
         self.shakeCooldown = shakeCooldown
-        
+
         stopAll()
 
         motionManager.deviceMotionUpdateInterval = updateInterval

@@ -5,14 +5,14 @@
 ////  Created by SeanCho on 8/8/25.
 ////
 
+import QuartzCore
 import SwiftUI
 import UIKit
-import QuartzCore
 
 struct MovingRock: View {
     @State var isBreakable: Bool
     @State var isClockEnd: Bool = false
-    
+
     private let shakeManager = MotionManager()
     private var rockWidth: CGFloat {
         switch rockPhase {
@@ -25,7 +25,7 @@ struct MovingRock: View {
         default: return 188.95
         }
     }
-    
+
     private var rockHeight: CGFloat {
         switch rockPhase {
         case 0: return 230
@@ -37,7 +37,7 @@ struct MovingRock: View {
         default: return 230
         }
     }
-    
+
     @State private var containerSize: CGSize = .zero
     @State private var rockOffset: CGSize = .zero
     @State private var isShaking: Bool = false
@@ -46,7 +46,7 @@ struct MovingRock: View {
     @State private var physicsTask: Task<Void, Never>? = nil
     @State private var shakeTask: Task<Void, Never>? = nil
     @State private var tiltTask: Task<Void, Never>? = nil
-    
+
     private var rockImageName: String {
         "Rock\(rockPhase)\(isRockPain ? "pain" : "")"
     }
@@ -54,9 +54,9 @@ struct MovingRock: View {
     @State private var rockPhaseCount: Int = 0
     @State private var isRockPain: Bool = false
     @State private var isRockPainTask: Task<Void, Never>? = nil
-    
+
     private let rockThrowingDuration: TimeInterval = 0.01
-    
+
     var body: some View {
         VStack {
             GeometryReader { proxy in
@@ -67,7 +67,10 @@ struct MovingRock: View {
                         .scaledToFit()
                         .frame(width: rockWidth, height: rockHeight)
                         .offset(rockOffset)
-                        .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                        .position(
+                            x: proxy.size.width / 2,
+                            y: proxy.size.height / 2
+                        )
                 }
                 .onAppear { containerSize = proxy.size }
                 .onChange(of: proxy.size) {
@@ -90,7 +93,7 @@ struct MovingRock: View {
                     .scaledToFill()
                     .opacity(rockPhase > 4 ? 1 : 0)
             }
-            .onAppear() {
+            .onAppear {
                 isClockEnd.toggle()
             }
         }
@@ -108,7 +111,7 @@ struct MovingRock: View {
                     await handleTiltVector(vec)
                 }
             }
-            
+
             physicsTask = Task { await runPhysicsLoop() }
         }
 
@@ -124,11 +127,11 @@ struct MovingRock: View {
             shakeManager.stopAll()
         }
     }
-    
+
     private func handleShakeDegree(_ deg: Int) async {
-        
+
         guard containerSize != .zero else { return }
-        
+
         if isBreakable { isRockPain = true }
         isRockPainTask = Task {
             try? await Task.sleep(for: .seconds(rockThrowingDuration))
@@ -136,32 +139,32 @@ struct MovingRock: View {
             isRockPain = false
         }
         isShaking = true
-        
+
         let theta = CGFloat(Double(deg) * .pi / 180)
         let ux = sin(theta)
         let uy = -cos(theta)
-        
+
         let halfW = containerSize.width / 2
         let halfH = containerSize.height / 2
         let xMargin = max(halfW - rockWidth / 2, 0)
         let yMargin = max(halfH - rockHeight / 2, 0)
-        
+
         let tx = ux == 0 ? .infinity : xMargin / abs(ux)
         let ty = uy == 0 ? .infinity : yMargin / abs(uy)
         let t = min(tx, ty)
-        
+
         let dx = ux * t
         let dy = uy * t
-        
+
         velocity = .zero
         withAnimation(.easeOut(duration: rockThrowingDuration)) {
             rockOffset = CGSize(width: dx, height: dy)
         }
-        
+
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        
+
         try? await Task.sleep(for: .seconds(rockThrowingDuration))
-        
+
         if isBreakable {
             rockPhaseCount += 1
             if rockPhaseCount > 20 {
@@ -170,35 +173,47 @@ struct MovingRock: View {
                     rockPhaseCount = 0
                     // 이때 알람꺼지면서 화면 전환
                     let selectedTime: Date = {
-                        var comps = Calendar.current.dateComponents([.hour, .minute], from: Date())
-                        comps.hour = UserDefaults.standard.integer(forKey: "alarmHour")
-                        comps.minute = UserDefaults.standard.integer(forKey: "alarmMinute")
+                        var comps = Calendar.current.dateComponents(
+                            [.hour, .minute],
+                            from: Date()
+                        )
+                        comps.hour = UserDefaults.standard.integer(
+                            forKey: "alarmHour"
+                        )
+                        comps.minute = UserDefaults.standard.integer(
+                            forKey: "alarmMinute"
+                        )
                         return Calendar.current.date(from: comps) ?? Date()
                     }()
-                    
-                    let comps = Calendar.current.dateComponents([.hour, .minute, .second], from: selectedTime)
+
+                    let comps = Calendar.current.dateComponents(
+                        [.hour, .minute, .second],
+                        from: selectedTime
+                    )
                     let h = comps.hour ?? 0
                     let m = comps.minute ?? 0
                     let s = comps.second ?? 0
-                    print(h,m,s)
-                    for i in 0..<8{
-                        var sec:Int{
+                    print(h, m, s)
+                    for i in 0..<8 {
+                        var sec: Int {
                             s + (i * 30)
                         }
-                        var min:Int{
+                        var min: Int {
                             sec / 60 + m
                         }
-                        
-                        var hour:Int{
+
+                        var hour: Int {
                             min / 60 + h
                         }
                         AlarmCancelService.cancelTodayBurst(
-                            hour: h % 24, minute: min % 60, second: sec % 60,
+                            hour: h % 24,
+                            minute: min % 60,
+                            second: sec % 60,
                             totalCount: 8,
                             baseKey: "WEEKLY_BURST"
                         )
                     }
-                   
+
                     AppRouter.shared.navigate(.blowAwayStone)
                 } else {
                     rockPhase += 1
@@ -206,10 +221,10 @@ struct MovingRock: View {
                 }
             }
         }
-        
+
         isShaking = false
     }
-    
+
     private func handleTiltVector(_ vec: CGVector) async {
         guard !isShaking else { return }
         guard containerSize != .zero else { return }
@@ -222,7 +237,6 @@ struct MovingRock: View {
         tiltAccel.dx = tiltAccel.dx * (1 - smoothing) + ux * smoothing
         tiltAccel.dy = tiltAccel.dy * (1 - smoothing) + uy * smoothing
     }
-
 
     private func runPhysicsLoop() async {
         var last = CACurrentMediaTime()
@@ -286,4 +300,3 @@ struct MovingRock: View {
         rockOffset = CGSize(width: px, height: py)
     }
 }
-
