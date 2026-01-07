@@ -21,7 +21,10 @@ extension Color {
         var rgbValue: UInt64 = 0
         scanner.scanHexInt64(&rgbValue)
 
-        let r, g, b, a: Double
+        let r: Double
+        let g: Double
+        let b: Double
+        let a: Double
         if hex.count == 9 {
             // #RRGGBBAA
             r = Double((rgbValue & 0xFF00_0000) >> 24) / 255

@@ -9,14 +9,14 @@ import SwiftUI
 
 struct CustomToggle: View {
     @Binding var isOn: Bool
-    
+
     init(isOn: Binding<Bool>) {
         self._isOn = isOn
     }
-    
+
     var body: some View {
         let switchSize = CGSize(width: 52, height: 32)
-    
+
         ZStack(alignment: .top) {
             Toggle("", isOn: $isOn)
                 .labelsHidden()
@@ -28,7 +28,7 @@ struct CustomToggle: View {
 
 struct CustomToggleExample: View {
     @State var previewIsOn: Bool = false
-    
+
     var body: some View {
         CustomToggle(isOn: $previewIsOn)
     }
