@@ -1,13 +1,20 @@
-# fastlane/Matchfile
+require 'dotenv'
 
-git_url("git@github.com:CRock-NoFrank/CRock-Certificates.git")
+fastlane_dir = (defined?(FastlaneCore::FastlaneFolder) && FastlaneCore::FastlaneFolder.path) || File.join(Dir.pwd, 'fastlane')
+env_path = File.expand_path('../.env.dev', fastlane_dir)
+Dotenv.overload(env_path) if File.exist?(env_path)
 
-storage_mode("git")
-type("development")
+git_url(ENV.fetch('MATCH_GIT_URL'))
+git_branch('main')
+clone_branch_directly(true)
+shallow_clone(true)
 
-username("nakisara01@naver.com")
-team_id("8ZUB5C2R66")
+storage_mode('git')
+type('development')
 
-app_identifier(["com.CRock.T8-NoFrank"])
+username(ENV.fetch('APPLE_ID'))
+team_id(ENV.fetch('APPLE_TEAM_ID'))
+
+app_identifier([ENV.fetch('APP_IDENTIFIER')])
 
 force_legacy_encryption(true)

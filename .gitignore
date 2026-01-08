@@ -44,7 +44,9 @@ Temporary Items
 *.icloud
 
 ### fastlane ###
-.env*
+.env
+.env.*
+!.env.example
 *.p12
 *.cer
 *.mobileprovision

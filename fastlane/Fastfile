@@ -1,6 +1,23 @@
-lane :setup_dev_certs do
-  match(
-    type: "development",
-    readonly: true
-  )
+require 'dotenv'
+Dotenv.load('.env.dev')
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Install development certs & profiles (readonly)"
+  lane :setup_dev_certs do
+    match(
+      type: "development",
+      readonly: true
+    )
+  end
+
+  desc "ADMIN ONLY: register new devices and update provisioning profiles"
+  lane :register_devices do
+    match(
+      type: "development",
+      readonly: false,
+      force_for_new_devices: true
+    )
+  end
 end

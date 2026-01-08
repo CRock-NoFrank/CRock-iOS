@@ -21,7 +21,15 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane ios setup_dev_certs
 ```
 
-로컬 개발용 인증서/프로비 자동 세팅
+Install dev certs (readonly)
+
+### ios register_devices
+
+```sh
+[bundle exec] fastlane ios register_devices
+```
+
+ADMIN: Register new devices and update provisioning profiles
 
 ----
 
