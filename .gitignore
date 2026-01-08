@@ -43,6 +43,14 @@ Temporary Items
 # iCloud generated files
 *.icloud
 
+### fastlane ###
+.env*
+*.p12
+*.cer
+*.mobileprovision
+fastlane/report.xml
+fastlane/test_output/
+
 ### Swift ###
 # Xcode
 #
@@ -133,3 +141,4 @@ iOSInjectionProject/
 
 
 # End of https://www.toptal.com/developers/gitignore/api/xcode,macos,swift,swiftpackagemanager,cocoapods
+vendor/

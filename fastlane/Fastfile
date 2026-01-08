@@ -1,0 +1,6 @@
+lane :setup_dev_certs do
+  match(
+    type: "development",
+    readonly: true
+  )
+end

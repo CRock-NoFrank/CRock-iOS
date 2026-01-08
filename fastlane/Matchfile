@@ -1,0 +1,13 @@
+# fastlane/Matchfile
+
+git_url("git@github.com:CRock-NoFrank/CRock-Certificates.git")
+
+storage_mode("git")
+type("development")
+
+username("nakisara01@naver.com")
+team_id("8ZUB5C2R66")
+
+app_identifier(["com.CRock.T8-NoFrank"])
+
+force_legacy_encryption(true)
