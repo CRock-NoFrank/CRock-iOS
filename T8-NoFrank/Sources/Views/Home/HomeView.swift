@@ -36,67 +36,54 @@ struct HomeView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Image("Home_Background")
-                Color.black
-                    .opacity(0.7)
-                    .edgesIgnoringSafeArea(.all)
+        ZStack {
+            Image("Home_Background")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .frame(width: screenWidth, height: screenHeight)
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(Color.white.opacity(0))
-                        .background(Color.clear)
-                }
-                .frame(width: 300, height: 742)
-                .coordinateSpace(name: "RockArena")
-                .overlay(
-                    Group {
-                        if isEnabled {
-                            MovingRock(isBreakable: false)
-                        }
+            Color.black
+                .opacity(0.7)
+                .edgesIgnoringSafeArea(.all)
+
+            if isEnabled {
+                MovingRockSpriteView(isBreakable: false)
+                Image("RotationGrass")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: screenWidth, height: screenHeight)
+                    .onAppear {
+                        WidgetCenter.shared.reloadAllTimelines()
                     }
-                )
-
-                if isEnabled {
-                    Image("RotationGrass")
-                        .resizable()
-                        .scaledToFit()
-                        .onAppear {
-                            WidgetCenter.shared.reloadAllTimelines()
-                        }
-
-                } else {
-                    Image("RockChain")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 455, height: 342)
-                        .padding(.top, 65)
-                        .onAppear {
-                            WidgetCenter.shared.reloadAllTimelines()
-                        }
-
-                }
-
-                VStack {
-                    AlarmCard(
-                        isOn: $isEnabled,
-                        timeText: timeTextFormatted,
-                        selectedDays: alarmDays.filter { $0.isSelected }.map {
-                            $0.name
-                        },
-                        date: alarmTime
-                    ) {
-                        isModal.toggle()
+            } else {
+                Image("RockChain")
+                    .resizable()
+                    .scaledToFit()
+                    .onAppear {
+                        WidgetCenter.shared.reloadAllTimelines()
                     }
-                    .padding(.top, 131)
-                    .padding(.horizontal, 130)
-
-                    Spacer()
-                }
             }
-            .ignoresSafeArea(.all)
+
+            VStack {
+                AlarmCard(
+                    isOn: $isEnabled,
+                    timeText: timeTextFormatted,
+                    selectedDays: alarmDays.filter { $0.isSelected }.map {
+                        $0.name
+                    },
+                    date: alarmTime
+                ) {
+                    isModal.toggle()
+                }
+                .padding(.top, 131)
+                .padding(.horizontal, 31)
+
+                Spacer()
+            }
         }
+        .frame(width: screenWidth, height: screenHeight)
+        .ignoresSafeArea(.all)
         .onAppear {
             loadAlarm()
             NotificationService.requestAuthorization()
@@ -124,7 +111,6 @@ struct HomeView: View {
             WidgetCenter.shared.reloadAllTimelines()
         }
         .onChange(of: isEnabled) { newValue in
-
             UserDefaults(suiteName: AppConstants.appGroupID)!.set(
                 alarmTime,
                 forKey: "alarmTime"

@@ -12,21 +12,22 @@ struct BreakingStoneView: View {
     @State private var alarmMinute: Int = 0
 
     var body: some View {
-        VStack {
-            ZStack {
-                Image("Home_Background")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: screenWidth, height: screenHeight)
-                Text(String(format: "%02d:%02d", alarmHour, alarmMinute))
-                    .font(.alarmTime)
-                    .foregroundColor(.white)
-                    .padding(.bottom, 500)
-                Color.black
-                    .opacity(0.7)
-                    .edgesIgnoringSafeArea(.all)
-                MovingRock(isBreakable: true)
-            }
+        ZStack {
+            Image("Home_Background")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .frame(width: screenWidth, height: screenHeight)
+
+            Text(String(format: "%02d:%02d", alarmHour, alarmMinute))
+                .font(.alarmTime)
+                .foregroundColor(.white)
+                .padding(.bottom, 500)
+
+            Color.black
+                .opacity(0.7)
+                .edgesIgnoringSafeArea(.all)
+            MovingRockSpriteView(isBreakable: true)
         }
         .onAppear {
             if let hour = UserDefaults(suiteName: AppConstants.appGroupID)?
