@@ -76,8 +76,8 @@ struct HomeView: View {
                 ) {
                     isModal.toggle()
                 }
-                .padding(.top, 131)
-                .padding(.horizontal, 31)
+                .padding(.top, 160)
+                .padding(.horizontal, 16)
 
                 Spacer()
             }
@@ -333,59 +333,63 @@ struct AlarmCard: View {
     }
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(Color.black.opacity(0.48))
-
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        ForEach(days.indices, id: \.self) { idx in
-                            let label = days[idx]
-                            Text(label)
-                                .font(
-                                    .custom(
-                                        Pretendard.regular.rawValue,
-                                        size: 17
-                                    )
-                                )
-                                .fontWeight(
-                                    selectedDays.contains(label)
-                                        ? .semibold : .regular
-                                )
-                                .foregroundStyle(
-                                    !selectedDays.contains(label)
-                                        ? Color(hex: "#969698")
-                                        : (isOn
-                                            ? Color(hex: "#BE5F1B")
-                                            : Color(hex: "#282828"))
-                                )
-                        }
-                    }
-
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(amPm)
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 4) {
+                    ForEach(days.indices, id: \.self) { idx in
+                        let label = days[idx]
+                        Text(label)
                             .font(
-                                .custom(Pretendard.regular.rawValue, size: 20)
+                                selectedDays.contains(label)
+                                    ? .caption1SemiBold : .caption1Medium
                             )
                             .foregroundStyle(
-                                isOn ? .white : Color(hex: "#969698")
-                            )
-                            .opacity(0.9)
-
-                        Text(timeText.isEmpty ? "07:00" : timeText)
-                            .font(.custom(Pretendard.bold.rawValue, size: 30))
-                            .foregroundStyle(
-                                isOn ? .white : Color(hex: "#969698")
+                                isOn
+                                    ? (selectedDays.contains(label)
+                                        ? .orange1 : .gray2)
+                                    : (selectedDays.contains(label)
+                                        ? .gray1 : .gray2)
                             )
                     }
                 }
 
-                Spacer(minLength: 16)
+                HStack(alignment: .firstTextBaseline, spacing: 13) {
+                    Text(amPm)
+                        .font(
+                            .custom(Pretendard.regular.rawValue, size: 20)
+                        )
+                        .foregroundStyle(
+                            isOn ? .white : .gray1
+                        )
 
-                CustomToggle(isOn: $isOn)
+                    Text(timeText.isEmpty ? "07:00" : timeText)
+                        .font(.custom(Pretendard.semiBold.rawValue, size: 30))
+                        .foregroundStyle(
+                            isOn ? .white : .gray1
+                        )
+                }
             }
-            .padding(20)
+
+            Spacer(minLength: 16)
+
+            CustomToggle(isOn: $isOn)
+        }
+        .padding(24)
+        .background {
+            if #available(iOS 26.0, *) {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(Color(hex: "#070604").opacity(0.4))
+                    .glassEffect(
+                        .clear,
+                        in: RoundedRectangle(
+                            cornerRadius: 30,
+                            style: .continuous
+                        )
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(.black160)
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(height: 109)
