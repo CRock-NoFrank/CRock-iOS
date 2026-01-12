@@ -6,15 +6,17 @@ Dotenv.overload(env_path) if File.exist?(env_path)
 
 git_url(ENV.fetch('MATCH_GIT_URL'))
 git_branch('main')
-clone_branch_directly(true)
 shallow_clone(true)
+generate_apple_certs(false)
+skip_certificate_matching(true)
+include_all_certificates(false)
 
-storage_mode('git')
 type('development')
 
 username(ENV.fetch('APPLE_ID'))
 team_id(ENV.fetch('APPLE_TEAM_ID'))
 
-app_identifier([ENV.fetch('APP_IDENTIFIER')])
-
-force_legacy_encryption(true)
+app_identifier([
+  "com.CRock.T8-NoFrank",
+  "com.CRock.T8-NoFrank.CRockWidget"
+])

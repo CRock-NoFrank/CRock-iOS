@@ -21,7 +21,7 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane ios setup_dev_certs
 ```
 
-Install dev certs (readonly)
+Install development certs & profiles (readonly)
 
 ### ios register_devices
 
@@ -29,7 +29,7 @@ Install dev certs (readonly)
 [bundle exec] fastlane ios register_devices
 ```
 
-ADMIN: Register new devices and update provisioning profiles
+ADMIN ONLY: register new devices and update provisioning profiles
 
 ----
 
