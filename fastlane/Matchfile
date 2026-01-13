@@ -1,0 +1,22 @@
+require 'dotenv'
+
+fastlane_dir = (defined?(FastlaneCore::FastlaneFolder) && FastlaneCore::FastlaneFolder.path) || File.join(Dir.pwd, 'fastlane')
+env_path = File.expand_path('../.env.dev', fastlane_dir)
+Dotenv.overload(env_path) if File.exist?(env_path)
+
+git_url(ENV.fetch('MATCH_GIT_URL'))
+git_branch('main')
+shallow_clone(true)
+generate_apple_certs(false)
+skip_certificate_matching(true)
+include_all_certificates(false)
+
+type('development')
+
+username(ENV.fetch('APPLE_ID'))
+team_id(ENV.fetch('APPLE_TEAM_ID'))
+
+app_identifier([
+  "com.CRock.T8-NoFrank",
+  "com.CRock.T8-NoFrank.CRockWidget"
+])
