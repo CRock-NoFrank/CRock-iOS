@@ -20,7 +20,6 @@ struct WeekdayToggleButton: View {
                 .foregroundStyle(Color.white)
         }
         .frame(width: 40, height: 40)
-        .background(isSelected ? Color(hex: "#BE5F1B") : Color(hex: "282828"))
-        .clipShape(Circle())
+        .background(Circle().fill(isSelected ? .orange2 : .gray2))
     }
 }

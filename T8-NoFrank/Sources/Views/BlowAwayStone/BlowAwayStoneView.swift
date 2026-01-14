@@ -20,9 +20,15 @@ struct BlowAwayStoneView: View {
     var body: some View {
         ZStack {
             Image("Home_Background")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .frame(width: screenWidth, height: screenHeight)
+
             Color.black
                 .opacity(0.7)
                 .edgesIgnoringSafeArea(.all)
+            
             VStack {
                 if !triggerActivated {
                     Text("돌이 깨졌어요")

@@ -47,7 +47,7 @@ struct AlarmSettingView: View {
                             .font(.custom("Pretendard", size: 19))
                             .padding(.leading, 30)
                             .padding(.bottom, 17)
-                        HStack {
+                        HStack(spacing: 9) {
                             ForEach($days, id: \.name) { $day in
                                 WeekdayToggleButton(
                                     title: day.name,
