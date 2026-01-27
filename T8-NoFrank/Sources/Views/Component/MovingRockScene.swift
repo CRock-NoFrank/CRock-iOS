@@ -59,6 +59,9 @@ class RockScene: SKScene {
     private func setupPhysicsBody() {
         guard let texture = rockNode.texture else { return }
 
+        // 오뚜기 효과: anchorPoint를 아래쪽으로 이동 (회전 중심이 아래로 내려감)
+        rockNode.anchorPoint = CGPoint(x: 0.5, y: 0.3)
+        
         let body = SKPhysicsBody(texture: texture, size: rockNode.size)
 
         body.allowsRotation = true
@@ -67,6 +70,7 @@ class RockScene: SKScene {
         body.restitution = 0.35
         body.friction = 0.2
         body.mass = 1.0
+        
         rockNode.physicsBody = body
     }
 
@@ -92,6 +96,13 @@ class RockScene: SKScene {
                 dy: tiltAcceleration.dy * accelPerG
             )
             body.applyForce(force)
+            
+            // 오뚜기 효과: 회전 복원력 추가
+            // 현재 회전 각도를 0도로 되돌리려는 토크
+            let currentAngle = rockNode.zRotation
+            let restoreTorque: CGFloat = -currentAngle * 10.0 // 복원력 강도
+            let dampingTorque: CGFloat = -body.angularVelocity * 3.0 // 감쇠력
+            body.applyTorque(restoreTorque + dampingTorque)
         }
     }
 }
