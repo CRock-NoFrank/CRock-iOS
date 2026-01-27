@@ -20,7 +20,6 @@ struct NotificationService {
             }
     }
     
-    // MARK: -- 마이크 권한 요청 함수
     static func requestMicrophonePermission() {
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
             if granted {

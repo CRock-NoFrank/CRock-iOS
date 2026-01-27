@@ -83,6 +83,7 @@ struct AlarmSettingView: View {
                             .foregroundStyle(Color(hex: "#BE5F1B"))
                     }
                 )
+                .disabled(!hasSelectedDays)
             }
         }
     }

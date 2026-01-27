@@ -291,6 +291,12 @@ struct HomeView: View {
                 alarmDays[i].isSelected = names.contains(alarmDays[i].name)
             }
             print("[Alarm][load] days=\(names)")
+        } else {
+            let defaultWeekdays = ["월", "화", "수", "목", "금"]
+            for i in alarmDays.indices {
+                alarmDays[i].isSelected = defaultWeekdays.contains(alarmDays[i].name)
+            }
+            print("[Alarm][load] 기본 요일 설정: \(defaultWeekdays)")
         }
 
         // 앱 시작 시 매주 반복 노티 복원
