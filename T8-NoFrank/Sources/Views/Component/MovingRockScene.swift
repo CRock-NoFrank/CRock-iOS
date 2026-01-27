@@ -244,36 +244,7 @@ struct MovingRockSpriteView: View {
         rockPhase = 0
         rockPhaseCount = 0
 
-        let selectedTime: Date = {
-            var comps = Calendar.current.dateComponents(
-                [.hour, .minute],
-                from: Date()
-            )
-            comps.hour = UserDefaults.standard.integer(forKey: "alarmHour")
-            comps.minute = UserDefaults.standard.integer(forKey: "alarmMinute")
-            return Calendar.current.date(from: comps) ?? Date()
-        }()
-
-        let comps = Calendar.current.dateComponents(
-            [.hour, .minute, .second],
-            from: selectedTime
-        )
-        let h = comps.hour ?? 0
-        let m = comps.minute ?? 0
-        let s = comps.second ?? 0
-
-        for i in 0..<8 {
-            var sec: Int { s + (i * 30) }
-            var min: Int { sec / 60 + m }
-            var hour: Int { min / 60 + h }
-            NotificationService.cancelTodayBurst(
-                hour: h % 24,
-                minute: min % 60,
-                second: sec % 60,
-                totalCount: 8,
-                baseKey: "WEEKLY_BURST"
-            )
-        }
+        BackgroundAudioPlayer.shared.stopAlarmAndBackToSilent()
 
         AppRouter.shared.navigate(.blowAwayStone)
     }

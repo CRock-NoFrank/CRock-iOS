@@ -30,6 +30,9 @@ struct T8_NoFrankApp: App {
                 print("앱이 비활성화됨")
             case .active:
                 print("앱이 포그라운드 상태")
+                if BackgroundAudioPlayer.shared.isAlarmMode {
+                    router.navigate(.breakingStone)
+                }
             @unknown default:
                 break
             }
