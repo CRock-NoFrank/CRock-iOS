@@ -380,7 +380,7 @@ struct AlarmCard: View {
         .background {
             if #available(iOS 26.0, *) {
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(Color(hex: "#070604").opacity(0.4))
+                    .fill(Color(hex: "#070604").opacity(0.5))
                     .glassEffect(
                         .clear,
                         in: RoundedRectangle(
