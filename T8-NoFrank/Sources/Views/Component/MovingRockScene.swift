@@ -141,6 +141,7 @@ struct MovingRockSpriteView: View {
                 options: [.allowsTransparency]
             )
             .background(Color.clear)
+            .padding(.horizontal, isBreakable ? 0 : 20)
             .opacity(isSceneReady ? 1 : 0)
             .onAppear {
                 sceneWrapper.scene.rockPhase = rockPhase
