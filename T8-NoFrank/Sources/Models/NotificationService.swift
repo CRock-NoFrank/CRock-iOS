@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UserNotifications
+import AVFoundation
 
 struct NotificationService {
     // MARK: -- 권한 설정 함수
@@ -17,6 +18,17 @@ struct NotificationService {
                 error in
 
             }
+    }
+    
+    // MARK: -- 마이크 권한 요청 함수
+    static func requestMicrophonePermission() {
+        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+            if granted {
+                print("마이크 권한이 허용되었습니다.")
+            } else {
+                print("마이크 권한이 거부되었습니다.")
+            }
+        }
     }
 }
 
