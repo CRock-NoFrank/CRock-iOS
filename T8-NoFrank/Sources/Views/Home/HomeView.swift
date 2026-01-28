@@ -87,7 +87,9 @@ struct HomeView: View {
         .ignoresSafeArea(.all)
         .onAppear {
             loadAlarm()
+            // 앱 시작 시 알람 및 마이크 권한 함께 요청
             NotificationService.requestAuthorization()
+            NotificationService.requestMicrophonePermission()
         }
         .sheet(isPresented: $isModal) {
             NavigationStack {
@@ -281,6 +283,12 @@ struct HomeView: View {
                 alarmDays[i].isSelected = names.contains(alarmDays[i].name)
             }
             print("[Alarm][load] days=\(names)")
+        } else {
+            let defaultWeekdays = ["월", "화", "수", "목", "금"]
+            for i in alarmDays.indices {
+                alarmDays[i].isSelected = defaultWeekdays.contains(alarmDays[i].name)
+            }
+            print("[Alarm][load] 기본 요일 설정: \(defaultWeekdays)")
         }
 
         // 볼륨 로드
@@ -374,7 +382,7 @@ struct AlarmCard: View {
         .background {
             if #available(iOS 26.0, *) {
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(Color(hex: "#070604").opacity(0.4))
+                    .fill(Color(hex: "#070604").opacity(0.5))
                     .glassEffect(
                         .clear,
                         in: RoundedRectangle(

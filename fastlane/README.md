@@ -23,13 +23,21 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 Install development certs & profiles (readonly)
 
-### ios register_devices
+### ios sync_profiles
 
 ```sh
-[bundle exec] fastlane ios register_devices
+[bundle exec] fastlane ios sync_profiles
 ```
 
-ADMIN ONLY: register new devices and update provisioning profiles
+ADMIN ONLY: sync profiles for newly added devices
+
+### ios add_device
+
+```sh
+[bundle exec] fastlane ios add_device
+```
+
+ADMIN ONLY: add a single device then sync profiles
 
 ----
 
