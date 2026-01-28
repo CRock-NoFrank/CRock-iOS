@@ -18,6 +18,10 @@ struct AlarmSettingView: View {
     @Binding var time: Date
     @Binding var days: [DayItem]
     @Environment(\.dismiss) var dismiss
+    
+    private var hasSelectedDays: Bool {
+        days.contains { $0.isSelected }
+    }
 
     var body: some View {
         VStack {
@@ -80,9 +84,14 @@ struct AlarmSettingView: View {
                     },
                     label: {
                         Text("저장")
-                            .foregroundStyle(Color(hex: "#BE5F1B"))
+                            .foregroundStyle(
+                                hasSelectedDays 
+                                ? Color(hex: "#BE5F1B") 
+                                : Color.gray
+                            )
                     }
                 )
+                .disabled(!hasSelectedDays)
             }
         }
     }
