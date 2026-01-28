@@ -23,6 +23,7 @@ struct HomeView: View {
     @State private var alarmTime = Date()
     @State private var shouldNavigate: Bool = false
     @State private var targetScreen: String = ""
+    @State private var alarmVolume: Double = 1.0
     @State private var alarmDays: [AlarmSettingView.DayItem] = [
         .init(name: "일", isSelected: false),
         .init(name: "월", isSelected: false),
@@ -95,7 +96,8 @@ struct HomeView: View {
                 AlarmSettingView(
                     isAlarmEnabled: isEnabled,
                     time: $alarmTime,
-                    days: $alarmDays  // 🔥 추가
+                    days: $alarmDays,
+                    volume: $alarmVolume
                 )
                 .navigationTitle("알람 편집")
                 .navigationBarTitleDisplayMode(.inline)
@@ -103,7 +105,7 @@ struct HomeView: View {
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbarColorScheme(.dark, for: .navigationBar)
             }
-            .presentationDetents([.fraction(0.6)])
+            .presentationDetents([.fraction(0.7)])
             .presentationDragIndicator(.visible)
         }
         .onChange(of: isModal) { newValue in
@@ -149,18 +151,15 @@ struct HomeView: View {
 
             if newValue == false {
                 NotificationService.cancelAllNotifications()
-                print("모든 노티 삭제")
+                BackgroundAudioPlayer.shared.stopAll()
+                print("알람 꺼짐")
             } else {
-                NotificationService.cancelAllNotifications()
-                NotificationService.scheduleWeeklyBurst(
-                    weekdays: weekdays,
+                BackgroundAudioPlayer.shared.startSilentSound(
                     hour: hour,
                     minute: minute,
-                    second: 0,
-                    intervalSec: 30,  // 30초 간격
-                    count: 8  // 8개의 노티
+                    weekdays: weekdays
                 )
-                print("노티 추가됨")
+                print("알람 켜짐")
             }
             WidgetCenter.shared.reloadAllTimelines()
         }
@@ -241,23 +240,16 @@ struct HomeView: View {
                     day.isSelected ? index + 1 : nil
                 }
             )
-            // 기존 매주 반복 노티 취소
-            NotificationService.cancelAllNotifications()
 
-            // 새로운 매주 반복 노티 스케줄링
-            NotificationService.scheduleWeeklyBurst(
-                weekdays: weekdays,
+            // 백그라운드 오디오 시작
+            BackgroundAudioPlayer.shared.startSilentSound(
                 hour: hour,
                 minute: minute,
-                second: 0,
-                intervalSec: 30,
-                count: 8
+                weekdays: weekdays
             )
-            print("매주 반복 노티 재설정 완료")
+            print("알람 설정 완료")
         } else {
-            // 알람이 비활성화되면 모든 매주 반복 노티 취소
-            let allWeekdays: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
-            NotificationService.cancelAllNotifications()
+            BackgroundAudioPlayer.shared.stopAll()
         }
     }
 
@@ -299,26 +291,30 @@ struct HomeView: View {
             print("[Alarm][load] 기본 요일 설정: \(defaultWeekdays)")
         }
 
-        // 앱 시작 시 매주 반복 노티 복원
-        //        if isEnabled {
-        //            let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
-        //            let hour = comps.hour ?? 0
-        //            let minute = comps.minute ?? 0
-        //
-        //            let weekdays: Set<Int> = Set(alarmDays.enumerated().compactMap { index, day in
-        //                day.isSelected ? index + 1 : nil
-        //            })
-        //
-        //            NotificationService.scheduleWeeklyBurst(
-        //                weekdays: weekdays,
-        //                hour: hour,
-        //                minute: minute,
-        //                second: 0,
-        //                intervalSec: 30,
-        //                count: 8
-        //            )
-        //            print("앱 시작 시 매주 반복 노티 복원 완료")
-        //        }
+        // 볼륨 로드
+        if let savedVolume = UserDefaults(suiteName: AppConstants.appGroupID)!
+            .object(forKey: "alarmVolume") as? Double {
+            alarmVolume = savedVolume
+            print("[Alarm][load] volume=\(Int(savedVolume * 100))%")
+        }
+
+        // 앱 시작 시 백그라운드 오디오 복원
+        if isEnabled {
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
+            let hour = comps.hour ?? 0
+            let minute = comps.minute ?? 0
+
+            let weekdays: Set<Int> = Set(alarmDays.enumerated().compactMap { index, day in
+                day.isSelected ? index + 1 : nil
+            })
+
+            BackgroundAudioPlayer.shared.startSilentSound(
+                hour: hour,
+                minute: minute,
+                weekdays: weekdays
+            )
+            print("앱 시작 시 백그라운드 오디오 복원 완료")
+        }
     }
 }
 

@@ -17,6 +17,7 @@ struct AlarmSettingView: View {
     let isAlarmEnabled: Bool
     @Binding var time: Date
     @Binding var days: [DayItem]
+    @Binding var volume: Double
     @Environment(\.dismiss) var dismiss
     
     private var hasSelectedDays: Bool {
@@ -60,6 +61,24 @@ struct AlarmSettingView: View {
                             }
                         }
                     }
+                    .padding(.bottom, 30)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("볼륨")
+                                .foregroundStyle(Color.white)
+                                .font(.custom("Pretendard", size: 19))
+                            Spacer()
+                            Text("\(Int(volume * 100))%")
+                                .foregroundStyle(Color.gray)
+                                .font(.custom("Pretendard", size: 16))
+                        }
+                        .padding(.horizontal, 30)
+
+                        Slider(value: $volume, in: 0.0...1.0)
+                            .accentColor(Color(hex: "#BE5F1B"))
+                            .padding(.horizontal, 30)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -96,7 +115,7 @@ struct AlarmSettingView: View {
         }
     }
 
-    // 🔥 알람 설정 저장 및 노티피케이션 스케줄링
+    // 🔥 알람 설정 저장
     private func saveAlarmSettings() {
         let comps = Calendar.current.dateComponents(
             [.hour, .minute],
@@ -112,23 +131,24 @@ struct AlarmSettingView: View {
             }
         )
 
-        if isAlarmEnabled {
-            // 기존 노티피케이션 취소
-            NotificationService.cancelAllNotifications()
+        // 볼륨 저장
+        UserDefaults(suiteName: AppConstants.appGroupID)!.set(
+            volume,
+            forKey: "alarmVolume"
+        )
 
-            // 새로운 노티피케이션 스케줄링
-            NotificationService.scheduleWeeklyBurst(
-                weekdays: weekdays,
+        if isAlarmEnabled {
+            // 백그라운드 오디오 재시작
+            BackgroundAudioPlayer.shared.stopAll()
+            BackgroundAudioPlayer.shared.startSilentSound(
                 hour: hour,
                 minute: minute,
-                second: 0,
-                intervalSec: 30,
-                count: 8
+                weekdays: weekdays
             )
-            print(" AlarmSettingView에서 노티피케이션 스케줄링 완료")
-            print("🔔 요일: \(weekdays), 시간: \(hour):\(minute)")
+            print("AlarmSettingView에서 알람 설정 완료")
+            print("🔔 요일: \(weekdays), 시간: \(hour):\(minute), 볼륨: \(Int(volume * 100))%")
         } else {
-            print(" 알람이 비활성화되어 있어서 노티피케이션을 스케줄링하지 않습니다")
+            print("알람이 비활성화되어 있습니다")
         }
     }
 }
