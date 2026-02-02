@@ -9,6 +9,7 @@ import SwiftUI
 
 struct BlowAwayStoneView: View {
     @State private var blowDetector = BlowDetector()
+    @State private var autoNavigateTask: Task<Void, Never>?
 
     @State private var triggerActivated = false
     @State private var dustOffset: CGFloat = 0
@@ -42,7 +43,17 @@ struct BlowAwayStoneView: View {
             ZStack {
                 VStack {
                     Group {
-                        if blowDetector.blowStage == 0 {
+                        if triggerActivated || blowDetector.blowStage == 3 {
+                            Image("stoneDustB1")
+                                .offset(x: dustOffset)
+                                .opacity(
+                                    1.0
+                                        - min(
+                                            1.0,
+                                            Double(abs(dustOffset / 300))
+                                        )
+                                )
+                        } else if blowDetector.blowStage == 0 {
                             Image("stoneDust")
                         } else if blowDetector.blowStage == 1 {
                             Image("stoneDustA1")
@@ -64,16 +75,6 @@ struct BlowAwayStoneView: View {
                                 .opacity(
                                     1.0 - min(1.0, Double(abs(b2Offset / 100)))
                                 )
-                        } else if blowDetector.blowStage == 3 {
-                            Image("stoneDustB1")
-                                .offset(x: dustOffset)
-                                .opacity(
-                                    1.0
-                                        - min(
-                                            1.0,
-                                            Double(abs(dustOffset / 300))
-                                        )
-                                )
                         }
                     }
                     Spacer()
@@ -92,35 +93,30 @@ struct BlowAwayStoneView: View {
                 .padding(.top, 359)
             }
         }
+        .onTapGesture {
+            triggerBlowAwayAndNavigate()
+        }
         .onChange(of: blowDetector.blowStage) { _, stage in
             switch stage {
             case 1:
+                resetAutoNavigateTimer()
                 withAnimation(.easeOut(duration: 1.5)) {
                     a2Offset = -200
                 }
             case 2:
+                resetAutoNavigateTimer()
                 withAnimation(.easeOut(duration: 1.5)) {
                     b2Offset = -300
                 }
             case 3:
-                Task {
-                    withAnimation(.easeOut(duration: 2)) {
-                        dustOffset = -400
-                        newStoneOffset = 0
-                        newStoneOpacity = 1
-                        triggerActivated = true
-                    }
-                    blowDetector.stop()
-
-                    try? await Task.sleep(for: .seconds(2))
-                    AppRouter.shared.navigate(.home)
-                }
+                triggerBlowAwayAndNavigate()
             default:
                 break
             }
         }
         .onDisappear {
             blowDetector.stop()
+            autoNavigateTask?.cancel()
         }
         .onAppear {
             triggerActivated = false
@@ -130,6 +126,37 @@ struct BlowAwayStoneView: View {
             a2Offset = 0
             b2Offset = 0
             blowDetector.start()
+
+            resetAutoNavigateTimer()
+        }
+    }
+
+    private func resetAutoNavigateTimer() {
+        autoNavigateTask?.cancel()
+        autoNavigateTask = Task {
+            try? await Task.sleep(for: .seconds(10))
+            if !Task.isCancelled {
+                await MainActor.run {
+                    triggerBlowAwayAndNavigate()
+                }
+            }
+        }
+    }
+
+    private func triggerBlowAwayAndNavigate() {
+        autoNavigateTask?.cancel()
+        blowDetector.stop()
+
+        Task {
+            withAnimation(.easeOut(duration: 2)) {
+                dustOffset = -400
+                newStoneOffset = 0
+                newStoneOpacity = 1
+                triggerActivated = true
+            }
+
+            try? await Task.sleep(for: .seconds(2))
+            AppRouter.shared.navigate(.home)
         }
     }
 }
