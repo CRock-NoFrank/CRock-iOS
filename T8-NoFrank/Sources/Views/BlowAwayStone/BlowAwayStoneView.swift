@@ -10,6 +10,7 @@ import SwiftUI
 struct BlowAwayStoneView: View {
     @State private var blowDetector = BlowDetector()
     @State private var autoNavigateTask: Task<Void, Never>?
+    @State private var blowAwayTask: Task<Void, Never>?
 
     @State private var triggerActivated = false
     @State private var dustOffset: CGFloat = 0
@@ -28,7 +29,7 @@ struct BlowAwayStoneView: View {
 
             Color.black
                 .opacity(0.7)
-                .edgesIgnoringSafeArea(.all)
+                .ignoresSafeArea()
             
             VStack {
                 if !triggerActivated {
@@ -117,6 +118,7 @@ struct BlowAwayStoneView: View {
         .onDisappear {
             blowDetector.stop()
             autoNavigateTask?.cancel()
+            blowAwayTask?.cancel()
         }
         .onAppear {
             triggerActivated = false
@@ -125,6 +127,7 @@ struct BlowAwayStoneView: View {
             newStoneOpacity = 0
             a2Offset = 0
             b2Offset = 0
+            blowAwayTask = nil
             blowDetector.start()
 
             resetAutoNavigateTimer()
@@ -144,10 +147,12 @@ struct BlowAwayStoneView: View {
     }
 
     private func triggerBlowAwayAndNavigate() {
+        guard blowAwayTask == nil else { return }
+
         autoNavigateTask?.cancel()
         blowDetector.stop()
 
-        Task {
+        blowAwayTask = Task { @MainActor in
             withAnimation(.easeOut(duration: 2)) {
                 dustOffset = -400
                 newStoneOffset = 0
@@ -156,6 +161,7 @@ struct BlowAwayStoneView: View {
             }
 
             try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
             AppRouter.shared.navigate(.home)
         }
     }
