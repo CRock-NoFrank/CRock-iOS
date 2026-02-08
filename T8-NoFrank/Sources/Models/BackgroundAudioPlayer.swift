@@ -21,6 +21,7 @@ class BackgroundAudioPlayer: ObservableObject {
     private var checkTimer: Timer?
     private var selectedWeekdays: Set<Int> = []
     private var originalSystemVolume: Float = 0.0
+    private var volumeRestorationTimer: Timer?
 
     private init() {
         setupAudioSession()
@@ -119,6 +120,9 @@ class BackgroundAudioPlayer: ObservableObject {
         audioPlayer?.volume = 1.0
         isAlarmMode = true
 
+        // 2초마다 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
+        startVolumeRestorationTimer(targetVolume: targetVolume)
+
         // 노티 1개만 전송
         sendLocalNotification()
 
@@ -151,6 +155,24 @@ class BackgroundAudioPlayer: ObservableObject {
                 print("📬 Notification sent successfully")
             }
         }
+    }
+
+    // MARK: - Volume Restoration Timer
+    private func startVolumeRestorationTimer(targetVolume: Float) {
+        volumeRestorationTimer?.invalidate()
+        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.isAlarmMode else { return }
+            let currentVolume = self.getCurrentSystemVolume()
+            if currentVolume < targetVolume {
+                self.setSystemVolume(targetVolume)
+                print("🔊 Volume restored: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
+            }
+        }
+    }
+
+    private func stopVolumeRestorationTimer() {
+        volumeRestorationTimer?.invalidate()
+        volumeRestorationTimer = nil
     }
 
     // MARK: - Check Alarm Time
@@ -213,6 +235,9 @@ class BackgroundAudioPlayer: ObservableObject {
     func stopAlarmAndBackToSilent() {
         guard isAlarmMode else { return }
 
+        // 볼륨 복원 타이머 중지
+        stopVolumeRestorationTimer()
+
         // 시스템 볼륨을 원래대로 복원
         setSystemVolume(originalSystemVolume)
         print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
@@ -232,6 +257,9 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - Stop All
     func stopAll() {
+        // 볼륨 복원 타이머 중지
+        stopVolumeRestorationTimer()
+
         // 알람 모드였다면 시스템 볼륨 복원
         if isAlarmMode {
             setSystemVolume(originalSystemVolume)
