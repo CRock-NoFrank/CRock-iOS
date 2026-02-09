@@ -85,32 +85,64 @@ struct AlarmSettingView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(
-                    action: {
-                        dismiss()
-                    },
-                    label: {
-                        Text("취소")
-                            .foregroundStyle(Color(hex: "#BE5F1B"))
-                    }
-                )
+                if #available(iOS 26, *) {
+                    Button(
+                        action: {
+                            dismiss()
+                        },
+                        label: {
+                            Image(systemName: "xmark")
+                                .foregroundStyle(Color(hex: "#BE5F1B"))
+                        }
+                    )
+                    .glassEffect()
+                } else {
+                    Button(
+                        action: {
+                            dismiss()
+                        },
+                        label: {
+                            Text("취소")
+                                .foregroundStyle(Color(hex: "#BE5F1B"))
+                        }
+                    )
+                }
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(
-                    action: {
-                        saveAlarmSettings()
-                        dismiss()
-                    },
-                    label: {
-                        Text("저장")
-                            .foregroundStyle(
-                                hasSelectedDays 
-                                ? Color(hex: "#BE5F1B") 
-                                : Color.gray
-                            )
-                    }
-                )
-                .disabled(!hasSelectedDays)
+                if #available(iOS 26, *) {
+                    Button(
+                        action: {
+                            saveAlarmSettings()
+                            dismiss()
+                        },
+                        label: {
+                            Image(systemName: "plus")
+                                .foregroundStyle(
+                                    hasSelectedDays
+                                    ? Color(hex: "#BE5F1B")
+                                    : Color.gray
+                                )
+                        }
+                    )
+                    .glassEffect()
+                    .disabled(!hasSelectedDays)
+                } else {
+                    Button(
+                        action: {
+                            saveAlarmSettings()
+                            dismiss()
+                        },
+                        label: {
+                            Text("저장")
+                                .foregroundStyle(
+                                    hasSelectedDays
+                                    ? Color(hex: "#BE5F1B")
+                                    : Color.gray
+                                )
+                        }
+                    )
+                    .disabled(!hasSelectedDays)
+                }
             }
         }
     }
