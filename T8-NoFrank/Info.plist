@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSAlarmKitUsageDescription</key>
-	<string></string>
+	<string>이 앱에서 설정한 알람을 제때 알려드리기 위해 알림을 예약합니다.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

@@ -12,7 +12,7 @@ import AppIntents
 import AlarmKit
 
 @available(iOS 26.0, *)
-struct StopAlarmIntent: AppIntent, LiveActivityIntent {
+struct StopAlarmIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "알람 정지"
     static var openAppWhenRun: Bool = true
 
