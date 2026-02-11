@@ -116,7 +116,7 @@ struct AlarmSettingView: View {
                             dismiss()
                         },
                         label: {
-                            Image(systemName: "plus")
+                            Image(systemName: "checkmark")
                                 .foregroundStyle(
                                     hasSelectedDays
                                     ? Color(hex: "#BE5F1B")
