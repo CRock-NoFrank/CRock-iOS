@@ -8,6 +8,18 @@
 import SwiftUI
 
 struct BlowAwayStoneView: View {
+    /// 현재 알람이 울린 요일 (돌이 깨지는 요일)
+    private let dayName: String = NextAlarmDayHelper.todayDayName
+    /// 다음에 깨질 돌의 요일
+    private let nextDayName: String = {
+        let ud = UserDefaults(suiteName: AppConstants.appGroupID)!
+        let hour = ud.object(forKey: "alarmHour") as? Int ?? 7
+        let minute = ud.object(forKey: "alarmMinute") as? Int ?? 0
+        let selectedNames = ud.stringArray(forKey: "alarmSelectedDays") ?? ["월", "화", "수", "목", "금"]
+        return NextAlarmDayHelper.nextAlarmDayName(
+            hour: hour, minute: minute, selectedDayNames: selectedNames
+        )
+    }()
     @State private var blowDetector = BlowDetector()
 
     @State private var triggerActivated = false
@@ -43,10 +55,10 @@ struct BlowAwayStoneView: View {
                 VStack {
                     Group {
                         if blowDetector.blowStage == 0 {
-                            Image("stoneDust")
+                            Image("\(dayName)/돌가루1")
                         } else if blowDetector.blowStage == 1 {
-                            Image("stoneDustA1")
-                            Image("stoneDustA2")
+                            Image("\(dayName)/돌가루2")
+                            Image("\(dayName)/떨어진 돌가루3")
                                 .offset(
                                     x: a2Offset * 2 - 20,
                                     y: a2Offset * 2 - 100
@@ -55,8 +67,8 @@ struct BlowAwayStoneView: View {
                                     1.0 - min(1.0, Double(abs(a2Offset / 100)))
                                 )
                         } else if blowDetector.blowStage == 2 {
-                            Image("stoneDustB1")
-                            Image("stoneDustB2")
+                            Image("\(dayName)/돌가루3")
+                            Image("\(dayName)/떨어진 돌가루2")
                                 .offset(
                                     x: -b2Offset * 2 - 60,
                                     y: b2Offset * 2 - 100
@@ -65,7 +77,7 @@ struct BlowAwayStoneView: View {
                                     1.0 - min(1.0, Double(abs(b2Offset / 100)))
                                 )
                         } else if blowDetector.blowStage == 3 {
-                            Image("stoneDustB1")
+                            Image("\(dayName)/돌가루3")
                                 .offset(x: dustOffset)
                                 .opacity(
                                     1.0
@@ -80,7 +92,7 @@ struct BlowAwayStoneView: View {
                 }
                 .padding(.top, 426)
                 VStack {
-                    Image("RockDefault")
+                    Image("\(nextDayName)/0단계")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 189, height: 230)

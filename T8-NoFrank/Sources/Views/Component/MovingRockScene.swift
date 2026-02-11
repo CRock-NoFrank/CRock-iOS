@@ -9,6 +9,10 @@ import SpriteKit
 import SwiftUI
 
 class RockScene: SKScene, SKPhysicsContactDelegate {
+    /// 요일별 에셋 폴더 이름 (예: "금", "월", "화" …)
+    var dayName: String = "월" {
+        didSet { updateRockTexture(updatePhysics: true) }
+    }
     var rockPhase: Int = 0 {
         didSet { updateRockTexture(updatePhysics: true) }
     }
@@ -58,7 +62,8 @@ class RockScene: SKScene, SKPhysicsContactDelegate {
     }
 
     func updateRockTexture(updatePhysics: Bool) {
-        let imageName = "Rock\(rockPhase)\(isRockPain ? "pain" : "")"
+        let suffix = isRockPain ? "_찡그린" : ""
+        let imageName = "\(dayName)/\(rockPhase)단계\(suffix)"
         let texture = SKTexture(imageNamed: imageName)
         rockNode.texture = texture
 
@@ -158,6 +163,8 @@ class RockScene: SKScene, SKPhysicsContactDelegate {
 
 struct MovingRockSpriteView: View {
     @State var isBreakable: Bool
+    /// 요일별 에셋 폴더 이름 (예: "금", "월")
+    var dayName: String = "월"
     @State var isClockEnd: Bool = false
 
     @StateObject private var sceneWrapper = SceneWrapper()
@@ -194,6 +201,7 @@ struct MovingRockSpriteView: View {
             .padding(.top, isBreakable ? 0 : 60)
             .opacity(isSceneReady ? 1 : 0)
             .onAppear {
+                sceneWrapper.scene.dayName = dayName
                 sceneWrapper.scene.rockPhase = rockPhase
                 sceneWrapper.scene.isRockPain = isRockPain
 
@@ -202,6 +210,9 @@ struct MovingRockSpriteView: View {
                         isSceneReady = true
                     }
                 }
+            }
+            .onChange(of: dayName) { newValue in
+                sceneWrapper.scene.dayName = newValue
             }
             .onChange(of: rockPhase) { newValue in
                 sceneWrapper.scene.rockPhase = newValue

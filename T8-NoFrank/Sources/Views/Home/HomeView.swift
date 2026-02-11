@@ -49,7 +49,7 @@ struct HomeView: View {
                 .edgesIgnoringSafeArea(.all)
 
             if isEnabled {
-                MovingRockSpriteView(isBreakable: false)
+                MovingRockSpriteView(isBreakable: false, dayName: nextAlarmDayName)
                 Image("RotationGrass")
                     .resizable()
                     .scaledToFill()
@@ -163,6 +163,17 @@ struct HomeView: View {
             }
             WidgetCenter.shared.reloadAllTimelines()
         }
+    }
+
+    /// 다음 알람이 울릴 요일의 한국어 이름 (에셋 폴더명)
+    private var nextAlarmDayName: String {
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
+        let selectedNames = alarmDays.filter { $0.isSelected }.map { $0.name }
+        return NextAlarmDayHelper.nextAlarmDayName(
+            hour: comps.hour ?? 0,
+            minute: comps.minute ?? 0,
+            selectedDayNames: selectedNames
+        )
     }
 
     private var timeTextFormatted: String {

@@ -27,7 +27,7 @@ struct BreakingStoneView: View {
             Color.black
                 .opacity(0.7)
                 .edgesIgnoringSafeArea(.all)
-            MovingRockSpriteView(isBreakable: true)
+            MovingRockSpriteView(isBreakable: true, dayName: NextAlarmDayHelper.todayDayName)
         }
         .onAppear {
             if let hour = UserDefaults(suiteName: AppConstants.appGroupID)?
