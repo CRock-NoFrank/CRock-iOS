@@ -54,7 +54,7 @@ extension NotificationService {
 
                 let content = UNMutableNotificationContent()
                 content.title = "CRock"
-                content.body = "돌 깨러가기" + String(repeating: "🪨", count: i + 1)
+                content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
                 content.userInfo = ["targetScreen": "TestView"]
 
                 // 어떤 사운드 틀지 정하는 곳

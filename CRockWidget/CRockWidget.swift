@@ -22,7 +22,9 @@ private enum WidgetStore {
         let hasHM = (defaults?.object(forKey: "alarmHour") != nil) && (defaults?.object(forKey: "alarmMinute") != nil)
 
         if enabled, hasHM, let h = hour, let m = minute {
-            let ampm = h < 12 ? "오전" : "오후"
+            let ampm = h < 12
+                ? NSLocalizedString("alarm_am", comment: "오전")
+                : NSLocalizedString("alarm_pm", comment: "오후")
             var displayHour = h
             if displayHour == 0 {
                 displayHour = 12
@@ -33,7 +35,9 @@ private enum WidgetStore {
             return (true, ampm, timeText)
         } else {
             if hasHM, let h = hour, let m = minute {
-                let ampm = h < 12 ? "오전" : "오후"
+                let ampm = h < 12
+                    ? NSLocalizedString("alarm_am", comment: "오전")
+                    : NSLocalizedString("alarm_pm", comment: "오후")
                 var displayHour = h
                 if displayHour == 0 {
                     displayHour = 12
@@ -43,7 +47,7 @@ private enum WidgetStore {
                 let timeText = String(format: "%02d:%02d", displayHour, m)
                 return (enabled, ampm, timeText)
             } else {
-                return (enabled, "", "없음")
+                return (enabled, "", NSLocalizedString("widget_no_alarm", comment: "없음"))
             }
         }
     }
@@ -111,7 +115,7 @@ struct CRockWidgetEntryView : View {
                         }
                     } else {
                         VStack(spacing: 0) {
-                            Text("없음")
+                            Text(NSLocalizedString("widget_no_alarm", comment: "없음"))
                                 .font(.system(size: 12))
                                 .padding(.bottom, 2)
                             Image("LockScreenWidget")
