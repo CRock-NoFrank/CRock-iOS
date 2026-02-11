@@ -25,6 +25,13 @@ class BackgroundAudioPlayer: ObservableObject {
 
     private init() {
         setupAudioSession()
+        _ = AlarmCoordinator.shared // 인터럽트 옵저버 등록
+    }
+
+    // MARK: - AlarmKit 인터럽트 후 재생 복원 (AlarmCoordinator에서 호출)
+    func resumeAfterInterruption() {
+        audioPlayer?.play()
+        audioPlayer?.volume = isAlarmMode ? 1.0 : 0.0
     }
 
     // MARK: - System Volume Control
@@ -51,7 +58,7 @@ class BackgroundAudioPlayer: ObservableObject {
             try audioSession.setCategory(
                 .playback,
                 mode: .default,
-                options: []
+                options: [.mixWithOthers] // 여기에 .mixWithOthers 옵션 추가
             )
             try audioSession.setActive(true)
             print("🔊 Audio session setup successful")
@@ -120,17 +127,21 @@ class BackgroundAudioPlayer: ObservableObject {
         // 시스템 볼륨을 설정한 값으로 변경
         setSystemVolume(targetVolume)
 
-        // 앱 내부 볼륨은 최대로 설정
-        audioPlayer?.volume = 1.0
         isAlarmMode = true
 
         // 2초마다 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
         startVolumeRestorationTimer(targetVolume: targetVolume)
 
-        // 노티 1개만 전송
-        sendLocalNotification()
-
-        print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
+        if AlarmCoordinator.shared.isAlarmKitAvailable {
+            // iOS 26+: AlarmKit이 소리 + UI 담당 (이미 스케줄됨)
+            print("🔔 AlarmKit alarm fired (target volume: \(Int(targetVolume * 100))%)")
+        } else {
+            // iOS <26: BackgroundAudioPlayer 소리 + 로컬 노티
+        	// 앱 내부 볼륨은 최대로 설정
+            audioPlayer?.volume = 1.0
+            sendLocalNotification()
+        	print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
+        }
     }
 
     // MARK: - Send Local Notification
@@ -261,12 +272,19 @@ class BackgroundAudioPlayer: ObservableObject {
         }
 
         self.alarmTime = nextAlarmDate
+
+        // iOS 26+: AlarmKit 알람도 같이 스케줄
+        if let nextDate = nextAlarmDate {
+            AlarmCoordinator.shared.scheduleNextAlarm(date: nextDate)
+        }
+
         print("📅 Next alarm time updated: \(nextAlarmDate?.formatted() ?? "nil")")
     }
 
     // MARK: - Stop Alarm and Back to Silent
     func stopAlarmAndBackToSilent() {
         guard isAlarmMode else { return }
+        AlarmCoordinator.shared.cancelAlarm()
 
         // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
@@ -279,6 +297,14 @@ class BackgroundAudioPlayer: ObservableObject {
         audioPlayer?.volume = 0.0
         isAlarmMode = false
 
+        // AlarmKit이 오디오 세션을 가져갔을 수 있으므로 복원
+        AlarmCoordinator.shared.recoverAudioSession()
+
+        print("🔍 stopAlarmAndBackToSilent: Before playSilentSound(), audioPlayer nil? \(audioPlayer == nil), isPlaying: \(audioPlayer?.isPlaying ?? false)")
+        // 오디오가 항상 재생되도록 보장
+        playSilentSound()
+        print("🔍 stopAlarmAndBackToSilent: After playSilentSound(), audioPlayer nil? \(audioPlayer == nil), isPlaying: \(audioPlayer?.isPlaying ?? false)")
+
         // 다음 알람 시간 계산
         if let alarmTime = alarmTime {
             let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
@@ -290,6 +316,8 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - Stop All
     func stopAll() {
+        AlarmCoordinator.shared.cancelAlarm()
+
         // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 

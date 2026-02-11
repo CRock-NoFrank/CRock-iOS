@@ -83,6 +83,7 @@ struct HomeView: View {
             // 앱 시작 시 알람 및 마이크 권한 함께 요청
             NotificationService.requestAuthorization()
             NotificationService.requestMicrophonePermission()
+            AlarmKitAvailability.requestAuthorizationIfAvailable()
         }
         .sheet(isPresented: $isModal) {
             NavigationStack {
