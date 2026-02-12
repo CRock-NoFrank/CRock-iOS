@@ -49,7 +49,7 @@ final class AlarmCoordinator {
                 try await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
                 
                 try session.setActive(true)
-                print("🔄 AlarmCoordinator에 의해 오디오 세션이 복구되었습니다.") // Re-adding this print
+//                print("🔄 AlarmCoordinator에 의해 오디오 세션이 복구되었습니다.") // Re-adding this print
             } catch {
                 print("❌ 오디오 세션 복구 실패: \(error)") // Updated to include X
             }
