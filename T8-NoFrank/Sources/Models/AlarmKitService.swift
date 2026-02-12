@@ -50,25 +50,19 @@ final class AlarmKitService {
         allAlarmIDs = [alarmID]
 
         do {
-            let alert: AlarmPresentation.Alert
-            if #available(iOS 26.1, *) {
-                alert = .init(
-                    title: LocalizedStringResource(stringLiteral: "기상")
-                )
-            } else {
-                // iOS 26.0: stopButton이 있는 deprecated 이니셜라이저 사용
-                alert = .init(
-                    title: LocalizedStringResource(stringLiteral: "기상"),
-                    stopButton: AlarmButton(
-                        text: "돌 깨러 가기",
-                        textColor: Color("Orange1"),
-                        systemImageName: "stop.circle.fill"
-                    )
-                )
-            }
+            let stopButton = AlarmButton(
+                text: "돌 깨러 가기",
+                textColor: Color("Orange1"),
+                systemImageName: "stop.circle"
+            )
 
             let attributes = AlarmAttributes(
-                presentation: AlarmPresentation(alert: alert),
+                presentation: AlarmPresentation(
+                    alert: .init(
+                        title: LocalizedStringResource(stringLiteral: "기상"),
+                        stopButton: stopButton
+                    )
+                ),
                 metadata: AlarmMetadata(),
                 tintColor: Color("Orange1")
             )
@@ -79,7 +73,7 @@ final class AlarmKitService {
                 schedule: schedule,
                 attributes: attributes,
                 stopIntent: StopAlarmIntent(),
-//                sound: .named("NotiSound28sec.caf")
+                sound: .named("NotiSound28sec.caf")
             )
 
             _ = try await AlarmManager.shared.schedule(id: alarmID, configuration: config)
