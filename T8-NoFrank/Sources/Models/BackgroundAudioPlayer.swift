@@ -64,6 +64,10 @@ class BackgroundAudioPlayer: ObservableObject {
         self.selectedWeekdays = weekdays
         updateNextAlarmTime(hour: hour, minute: minute)
 
+        // 앱 재시작 시 이전 종료 경고 노티 즉시 취소
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+
         playSilentSound()
 
         // 1초마다 알람 시간 체크
@@ -153,9 +157,38 @@ class BackgroundAudioPlayer: ObservableObject {
         }
     }
 
+    // MARK: - App Termination Warning (Dead Man's Switch)
+    private func scheduleTerminationWarning() {
+        let center = UNUserNotificationCenter.current()
+        // 이전 경고 노티 취소 후 1초 뒤로 재예약
+        center.removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+
+        let content = UNMutableNotificationContent()
+        content.title = "CRock"
+        content.body = "앱이 종료되었어요. 알람이 울리지 않을 수 있어요!"
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "appTerminationWarning",
+            content: content,
+            trigger: trigger
+        )
+        center.add(request)
+    }
+
     // MARK: - Check Alarm Time
     private func checkAlarmTime() {
         guard let alarmTime = alarmTime else { return }
+
+        // 알람 울리는 중이 아닐 때만 종료 경고 노티 예약
+        if !isAlarmMode {
+            scheduleTerminationWarning()
+        } else {
+            // 알람 모드일 때는 경고 노티 취소
+            UNUserNotificationCenter.current()
+                .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+        }
 
         let now = Date()
 
@@ -245,6 +278,11 @@ class BackgroundAudioPlayer: ObservableObject {
         isPlaying = false
         isAlarmMode = false
         alarmTime = nil
+
+        // 알람 끄면 종료 경고 노티도 취소
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+
         print("🛑 Background audio player stopped")
     }
 }
