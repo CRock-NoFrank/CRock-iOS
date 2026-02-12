@@ -50,19 +50,25 @@ final class AlarmKitService {
         allAlarmIDs = [alarmID]
 
         do {
-            let stopButton = AlarmButton(
-                text: "돌 깨러 가기",
-                textColor: Color("Orange1"),
-                systemImageName: "stop.circle"
-            )
+            let alert: AlarmPresentation.Alert
+            if #available(iOS 26.1, *) {
+                alert = .init(
+                    title: LocalizedStringResource(stringLiteral: "기상")
+                )
+            } else {
+                // iOS 26.0: stopButton이 있는 deprecated 이니셜라이저 사용
+                alert = .init(
+                    title: LocalizedStringResource(stringLiteral: "기상"),
+                    stopButton: AlarmButton(
+                        text: "돌 깨러 가기",
+                        textColor: Color("Orange1"),
+                        systemImageName: "stop.circle.fill"
+                    )
+                )
+            }
 
             let attributes = AlarmAttributes(
-                presentation: AlarmPresentation(
-                    alert: .init(
-                        title: LocalizedStringResource(stringLiteral: "기상"),
-                        stopButton: stopButton
-                    )
-                ),
+                presentation: AlarmPresentation(alert: alert),
                 metadata: AlarmMetadata(),
                 tintColor: Color("Orange1")
             )
