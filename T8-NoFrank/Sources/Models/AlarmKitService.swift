@@ -51,20 +51,20 @@ final class AlarmKitService {
 
         do {
             let stopButton = AlarmButton(
-                text: "앱 열기",
-                textColor: .white,
-                systemImageName: "arrow.up.forward.app.fill"
+                text: "돌 깨러 가기",
+                textColor: Color("Orange1"),
+                systemImageName: "stop.circle"
             )
 
             let attributes = AlarmAttributes(
                 presentation: AlarmPresentation(
                     alert: .init(
-                        title: LocalizedStringResource(stringLiteral: "CRock"),
+                        title: LocalizedStringResource(stringLiteral: "기상"),
                         stopButton: stopButton
                     )
                 ),
                 metadata: AlarmMetadata(),
-                tintColor: .blue
+                tintColor: Color("Orange1")
             )
 
             let schedule = Alarm.Schedule.fixed(date)
