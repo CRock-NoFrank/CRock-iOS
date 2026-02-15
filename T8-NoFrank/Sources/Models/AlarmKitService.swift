@@ -11,6 +11,7 @@ import Foundation
 #if canImport(AlarmKit)
 import AlarmKit
 import SwiftUI
+import ActivityKit
 
 @available(iOS 26.0, *)
 final class AlarmKitService {
@@ -75,11 +76,17 @@ final class AlarmKitService {
 
             let schedule = Alarm.Schedule.fixed(date)
 
+            #if targetEnvironment(simulator)
+            let alarmSound: AlertConfiguration.AlertSound = .default
+            #else
+            let alarmSound: AlertConfiguration.AlertSound = .named("NotiSound28sec.caf")
+            #endif
+
             let config = AlarmManager.AlarmConfiguration(
                 schedule: schedule,
                 attributes: attributes,
                 stopIntent: StopAlarmIntent(),
-                sound: .named("NotiSound28sec.caf")
+                sound: alarmSound
             )
 
             _ = try await AlarmManager.shared.schedule(id: alarmID, configuration: config)
@@ -160,3 +167,4 @@ enum AlarmKitAvailability {
         #endif
     }
 }
+
