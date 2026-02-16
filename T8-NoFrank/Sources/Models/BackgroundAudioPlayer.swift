@@ -30,8 +30,18 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - AlarmKit 인터럽트 후 재생 복원 (AlarmCoordinator에서 호출)
     func resumeAfterInterruption() {
-        audioPlayer?.play()
-        audioPlayer?.volume = isAlarmMode ? 1.0 : 0.0
+        if isAlarmMode {
+            // AlarmKit이 강제 종료됐지만 알람은 아직 울려야 하는 상태
+            // → 오디오 세션 복구 후 앱 오디오로 알람 재생 + 알림 발송
+            setupAudioSession()
+            audioPlayer?.volume = 1.0
+            audioPlayer?.play()
+            sendLocalNotification()
+            print("🔔 AlarmKit 종료 감지 → 앱 오디오로 알람 재개")
+        } else {
+            audioPlayer?.play()
+            audioPlayer?.volume = 0.0
+        }
     }
 
     // MARK: - System Volume Control
@@ -133,8 +143,12 @@ class BackgroundAudioPlayer: ObservableObject {
         startVolumeRestorationTimer(targetVolume: targetVolume)
 
         if AlarmCoordinator.shared.isAlarmKitAvailable {
-            // iOS 26+: AlarmKit이 소리 + UI 담당 (이미 스케줄됨)
-            print("🔔 AlarmKit alarm fired (target volume: \(Int(targetVolume * 100))%)")
+            // iOS 26+: AlarmKit UI + 앱 오디오로 사운드 재생
+            // AlarmKit이 강제 종료돼도 앱 오디오가 이어받을 수 있도록 미리 재생
+            setupAudioSession()
+            audioPlayer?.volume = 1.0
+            audioPlayer?.play()
+            print("🔔 AlarmKit alarm fired, app audio also playing (target volume: \(Int(targetVolume * 100))%)")
         } else {
             // iOS <26: BackgroundAudioPlayer 소리 + 로컬 노티
         	// 앱 내부 볼륨은 최대로 설정
