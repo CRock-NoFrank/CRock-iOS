@@ -69,7 +69,8 @@ final class AlarmCoordinator {
                   let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
 
             if type == .ended {
-                self.recoverAudioSession()
+                // 세션 복구 후 BackgroundAudioPlayer 재개
+                // resumeAfterInterruption 내부에서 세션 복구를 직접 처리하므로 바로 호출
                 let player = BackgroundAudioPlayer.shared
                 player.resumeAfterInterruption()
             }
