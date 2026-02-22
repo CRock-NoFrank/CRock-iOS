@@ -33,7 +33,7 @@ struct BlowAwayStoneView: View {
             
             VStack {
                 if !triggerActivated {
-                    Text("돌이 깨졌어요")
+                    Text(NSLocalizedString("broke_rock_title", comment: "돌이 깨졌어요"))
                         .font(.body01Bold)
                         .foregroundStyle(.white)
                         .padding(.top, 139)

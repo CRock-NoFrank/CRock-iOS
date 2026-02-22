@@ -1,0 +1,18 @@
+"weekday_mon" = "Mon";
+"weekday_tue" = "Tue";
+"weekday_wed" = "Wed";
+"weekday_thu" = "Thu";
+"weekday_fri" = "Fri";
+"weekday_sat" = "Sat";
+"weekday_sun" = "Sun";
+
+"alarm_edit_title" = "Edit Alarm";
+"alarm_cancel" = "Cancel";
+"alarm_save" = "Save";
+"alarm_days" = "Days";
+"alarm_volume" = "Volume";
+"alarm_am" = "AM";
+"alarm_pm" = "PM";
+
+"alarm_notification_body" = "Go Break the Rock 🪨🪨";
+"broke_rock_title" = "You broke the rock!";

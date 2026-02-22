@@ -1,0 +1,18 @@
+"weekday_mon" = "월";
+"weekday_tue" = "화";
+"weekday_wed" = "수";
+"weekday_thu" = "목";
+"weekday_fri" = "금";
+"weekday_sat" = "토";
+"weekday_sun" = "일";
+
+"alarm_edit_title" = "알람 편집";
+"alarm_cancel" = "취소";
+"alarm_save" = "저장";
+"alarm_days" = "요일";
+"alarm_volume" = "볼륨";
+"alarm_am" = "오전";
+"alarm_pm" = "오후";
+
+"alarm_notification_body" = "돌 깨러가기 🪨🪨";
+"broke_rock_title" = "돌이 깨졌어요";

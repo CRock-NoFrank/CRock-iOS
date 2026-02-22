@@ -137,7 +137,7 @@ class BackgroundAudioPlayer: ObservableObject {
     private func sendLocalNotification() {
         let content = UNMutableNotificationContent()
         content.title = "CRock"
-        content.body = "돌 깨러가기 🪨"
+        content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
         content.userInfo = ["targetScreen": "BreakingStone"]
         content.sound = UNNotificationSound(named: .init("NotiSound28sec.caf"))
 
