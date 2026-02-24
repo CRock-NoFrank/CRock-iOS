@@ -24,15 +24,8 @@ struct HomeView: View {
     @State private var shouldNavigate: Bool = false
     @State private var targetScreen: String = ""
     @State private var alarmVolume: Double = 1.0
-    @State private var alarmDays: [AlarmSettingView.DayItem] = [
-        .init(name: "일", isSelected: false),
-        .init(name: "월", isSelected: false),
-        .init(name: "화", isSelected: false),
-        .init(name: "수", isSelected: false),
-        .init(name: "목", isSelected: false),
-        .init(name: "금", isSelected: false),
-        .init(name: "토", isSelected: false),
-    ]
+    @State private var alarmDays: [AlarmSettingView.DayItem] =
+        Weekday.ordered.map { .init(weekday: $0, isSelected: false) }
 
     @Environment(\.dismiss) private var dismiss
 
@@ -70,9 +63,9 @@ struct HomeView: View {
                 AlarmCard(
                     isOn: $isEnabled,
                     timeText: timeTextFormatted,
-                    selectedDays: alarmDays.filter { $0.isSelected }.map {
-                        $0.name
-                    },
+                    selectedWeekdays: Set(
+                        alarmDays.filter { $0.isSelected }.map { $0.weekday.rawValue }
+                    ),
                     date: alarmTime
                 ) {
                     isModal.toggle()
@@ -99,7 +92,7 @@ struct HomeView: View {
                     days: $alarmDays,
                     volume: $alarmVolume
                 )
-                .navigationTitle("알람 편집")
+                .navigationTitle(NSLocalizedString("alarm_edit_title", comment: "알람 편집"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(Color(hex: "151515"), for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
@@ -135,19 +128,15 @@ struct HomeView: View {
                     forKey: "alarmMinute"
                 )
             }
-            let selectedNames = alarmDays.filter { $0.isSelected }.map {
-                $0.name
+            let selectedWeekdays = alarmDays.compactMap { day in
+                day.isSelected ? day.weekday.rawValue : nil
             }
             UserDefaults(suiteName: AppConstants.appGroupID)!.set(
-                selectedNames,
-                forKey: "alarmSelectedDays"
+                selectedWeekdays,
+                forKey: "alarmSelectedWeekdays"
             )
 
-            let weekdays: Set<Int> = Set(
-                alarmDays.enumerated().compactMap { index, day in
-                    day.isSelected ? index + 1 : nil
-                }
-            )
+            let weekdays: Set<Int> = Set(selectedWeekdays)
 
             if newValue == false {
                 NotificationService.cancelAllNotifications()
@@ -223,21 +212,23 @@ struct HomeView: View {
                 forKey: "alarmMinute"
             )
         }
-        let selectedNames = alarmDays.filter { $0.isSelected }.map { $0.name }
+        let selectedWeekdays = alarmDays.compactMap { day in
+            day.isSelected ? day.weekday.rawValue : nil
+        }
         UserDefaults(suiteName: AppConstants.appGroupID)!.set(
-            selectedNames,
-            forKey: "alarmSelectedDays"
+            selectedWeekdays,
+            forKey: "alarmSelectedWeekdays"
         )
 
         print(
             "[Alarm][persist] time=\(alarmTime) (hour=\(hour), minute=\(minute))"
         )
-        print("[Alarm][persist] days=\(selectedNames)")
+        print("[Alarm][persist] days=\(selectedWeekdays)")
 
         if isEnabled {
             let weekdays: Set<Int> = Set(
-                alarmDays.enumerated().compactMap { index, day in
-                    day.isSelected ? index + 1 : nil
+                alarmDays.compactMap { day in
+                    day.isSelected ? day.weekday.rawValue : nil
                 }
             )
 
@@ -276,17 +267,32 @@ struct HomeView: View {
         }
         print("[Alarm][load] time=\(alarmTime)")
 
-        if let names = UserDefaults(suiteName: AppConstants.appGroupID)!
+        if let savedWeekdays = UserDefaults(suiteName: AppConstants.appGroupID)!
+            .array(forKey: "alarmSelectedWeekdays") as? [Int]
+        {
+            let selected = Set(savedWeekdays)
+            for i in alarmDays.indices {
+                alarmDays[i].isSelected = selected.contains(alarmDays[i].weekday.rawValue)
+            }
+            print("[Alarm][load] days=\(savedWeekdays)")
+        } else if let legacyNames = UserDefaults(suiteName: AppConstants.appGroupID)!
             .stringArray(forKey: "alarmSelectedDays")
         {
+            let selected = Set(legacyNames.compactMap { Weekday.fromLegacyName($0)?.rawValue })
             for i in alarmDays.indices {
-                alarmDays[i].isSelected = names.contains(alarmDays[i].name)
+                alarmDays[i].isSelected = selected.contains(alarmDays[i].weekday.rawValue)
             }
-            print("[Alarm][load] days=\(names)")
+            print("[Alarm][load] days=\(legacyNames)")
         } else {
-            let defaultWeekdays = ["월", "화", "수", "목", "금"]
+            let defaultWeekdays: Set<Int> = [
+                Weekday.mon.rawValue,
+                Weekday.tue.rawValue,
+                Weekday.wed.rawValue,
+                Weekday.thu.rawValue,
+                Weekday.fri.rawValue,
+            ]
             for i in alarmDays.indices {
-                alarmDays[i].isSelected = defaultWeekdays.contains(alarmDays[i].name)
+                alarmDays[i].isSelected = defaultWeekdays.contains(alarmDays[i].weekday.rawValue)
             }
             print("[Alarm][load] 기본 요일 설정: \(defaultWeekdays)")
         }
@@ -304,8 +310,8 @@ struct HomeView: View {
             let hour = comps.hour ?? 0
             let minute = comps.minute ?? 0
 
-            let weekdays: Set<Int> = Set(alarmDays.enumerated().compactMap { index, day in
-                day.isSelected ? index + 1 : nil
+            let weekdays: Set<Int> = Set(alarmDays.compactMap { day in
+                day.isSelected ? day.weekday.rawValue : nil
             })
 
             BackgroundAudioPlayer.shared.startSilentSound(
@@ -325,15 +331,17 @@ struct HomeView: View {
 struct AlarmCard: View {
     @Binding var isOn: Bool
     var timeText: String
-    var selectedDays: [String]
+    var selectedWeekdays: Set<Int>
     var date: Date
     var onTap: () -> Void
 
-    private let days: [String] = ["일", "월", "화", "수", "목", "금", "토"]
+    private let days: [Weekday] = Weekday.ordered
 
     var amPm: String {
         let hour = Calendar.current.component(.hour, from: date)
-        return hour < 12 ? "오전" : "오후"
+        return hour < 12
+            ? NSLocalizedString("alarm_am", comment: "오전")
+            : NSLocalizedString("alarm_pm", comment: "오후")
     }
 
     var body: some View {
@@ -341,17 +349,17 @@ struct AlarmCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 4) {
                     ForEach(days.indices, id: \.self) { idx in
-                        let label = days[idx]
-                        Text(label)
+                        let weekday = days[idx]
+                        Text(NSLocalizedString(weekday.labelKey, comment: "요일"))
                             .font(
-                                selectedDays.contains(label)
+                                selectedWeekdays.contains(weekday.rawValue)
                                     ? .caption1SemiBold : .caption1Medium
                             )
                             .foregroundStyle(
                                 isOn
-                                    ? (selectedDays.contains(label)
+                                    ? (selectedWeekdays.contains(weekday.rawValue)
                                         ? .orange1 : .gray2)
-                                    : (selectedDays.contains(label)
+                                    : (selectedWeekdays.contains(weekday.rawValue)
                                         ? .gray1 : .gray2)
                             )
                     }

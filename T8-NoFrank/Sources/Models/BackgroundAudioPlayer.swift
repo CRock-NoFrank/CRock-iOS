@@ -21,6 +21,7 @@ class BackgroundAudioPlayer: ObservableObject {
     private var checkTimer: Timer?
     private var selectedWeekdays: Set<Int> = []
     private var originalSystemVolume: Float = 0.0
+    private var volumeRestorationTimer: Timer?
 
     private init() {
         setupAudioSession()
@@ -63,6 +64,10 @@ class BackgroundAudioPlayer: ObservableObject {
     func startSilentSound(hour: Int, minute: Int, weekdays: Set<Int>) {
         self.selectedWeekdays = weekdays
         updateNextAlarmTime(hour: hour, minute: minute)
+
+        // 앱 재시작 시 이전 종료 경고 노티 즉시 취소
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
 
         playSilentSound()
 
@@ -119,6 +124,9 @@ class BackgroundAudioPlayer: ObservableObject {
         audioPlayer?.volume = 1.0
         isAlarmMode = true
 
+        // 2초마다 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
+        startVolumeRestorationTimer(targetVolume: targetVolume)
+
         // 노티 1개만 전송
         sendLocalNotification()
 
@@ -129,7 +137,7 @@ class BackgroundAudioPlayer: ObservableObject {
     private func sendLocalNotification() {
         let content = UNMutableNotificationContent()
         content.title = "CRock"
-        content.body = "돌 깨러가기 🪨"
+        content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
         content.userInfo = ["targetScreen": "BreakingStone"]
         content.sound = UNNotificationSound(named: .init("NotiSound28sec.caf"))
 
@@ -153,9 +161,56 @@ class BackgroundAudioPlayer: ObservableObject {
         }
     }
 
+    // MARK: - Volume Restoration Timer
+    private func startVolumeRestorationTimer(targetVolume: Float) {
+        volumeRestorationTimer?.invalidate()
+        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.isAlarmMode else { return }
+            let currentVolume = self.getCurrentSystemVolume()
+            if currentVolume < targetVolume {
+                self.setSystemVolume(targetVolume)
+                print("🔊 Volume restored: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
+            }
+        }
+    }
+
+    private func stopVolumeRestorationTimer() {
+        volumeRestorationTimer?.invalidate()
+        volumeRestorationTimer = nil
+    }
+
+    // MARK: - App Termination Warning (Dead Man's Switch)
+    private func scheduleTerminationWarning() {
+        let center = UNUserNotificationCenter.current()
+        // 이전 경고 노티 취소 후 1초 뒤로 재예약
+        center.removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+
+        let content = UNMutableNotificationContent()
+        content.title = "CRock"
+        content.body = "앱이 종료되었어요. 알람이 울리지 않을 수 있어요!"
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "appTerminationWarning",
+            content: content,
+            trigger: trigger
+        )
+        center.add(request)
+    }
+
     // MARK: - Check Alarm Time
     private func checkAlarmTime() {
         guard let alarmTime = alarmTime else { return }
+
+        // 알람 울리는 중이 아닐 때만 종료 경고 노티 예약
+        if !isAlarmMode {
+            scheduleTerminationWarning()
+        } else {
+            // 알람 모드일 때는 경고 노티 취소
+            UNUserNotificationCenter.current()
+                .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+        }
 
         let now = Date()
 
@@ -213,6 +268,9 @@ class BackgroundAudioPlayer: ObservableObject {
     func stopAlarmAndBackToSilent() {
         guard isAlarmMode else { return }
 
+        // 볼륨 복원 타이머 중지
+        stopVolumeRestorationTimer()
+
         // 시스템 볼륨을 원래대로 복원
         setSystemVolume(originalSystemVolume)
         print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
@@ -232,6 +290,9 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - Stop All
     func stopAll() {
+        // 볼륨 복원 타이머 중지
+        stopVolumeRestorationTimer()
+
         // 알람 모드였다면 시스템 볼륨 복원
         if isAlarmMode {
             setSystemVolume(originalSystemVolume)
@@ -245,6 +306,11 @@ class BackgroundAudioPlayer: ObservableObject {
         isPlaying = false
         isAlarmMode = false
         alarmTime = nil
+
+        // 알람 끄면 종료 경고 노티도 취소
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+
         print("🛑 Background audio player stopped")
     }
 }
