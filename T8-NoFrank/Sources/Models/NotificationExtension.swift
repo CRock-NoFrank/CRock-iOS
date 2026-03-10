@@ -54,7 +54,7 @@ extension NotificationService {
 
                 let content = UNMutableNotificationContent()
                 content.title = "CRock"
-                content.body = "돌 깨러가기" + String(repeating: "🪨", count: i + 1)
+                content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
                 content.userInfo = ["targetScreen": "TestView"]
 
                 // 어떤 사운드 틀지 정하는 곳
@@ -153,11 +153,19 @@ extension NotificationDelegate {
         // ✅ 앱이 보낸 알림 전부 제거
         center.removeAllDeliveredNotifications()  // 이미 온 알림 삭제
 
-        // 여기서 알람 화면 전환, 사운드 정지 등 원하는 로직 실행 가능
         print("알림 제거 완료")
 
-        Task { @MainActor in
-            AppRouter.shared.navigate(.breakingStone)
+        let id = response.notification.request.identifier
+
+        // 종료 경고 노티는 홈으로 이동
+        if id == "appTerminationWarning" {
+            Task { @MainActor in
+                AppRouter.shared.navigate(.home)
+            }
+        } else {
+            Task { @MainActor in
+                AppRouter.shared.navigate(.breakingStone)
+            }
         }
         completionHandler()
     }

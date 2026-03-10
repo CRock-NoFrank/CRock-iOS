@@ -107,17 +107,15 @@ extension NotificationService {
 enum WeekdayMap {
     static let nameToInt: [String: Int] = [
         "일": 1, "월": 2, "화": 3, "수": 4, "목": 5, "금": 6, "토": 7,
-    ]
-    static let intToName: [Int: String] = [
-        1: "일", 2: "월", 3: "화", 4: "수", 5: "목", 6: "금", 7: "토",
+        "Sun": 1, "Mon": 2, "Tue": 3, "Wed": 4, "Thu": 5, "Fri": 6, "Sat": 7,
     ]
 
     static func toInts(from names: [String]) -> Set<Int> {
         Set(names.compactMap { nameToInt[$0] })
     }
     static func toNames(from ints: Set<Int>) -> [String] {
-        ints.compactMap { intToName[$0] }.sorted {
-            (nameToInt[$0] ?? 0) < (nameToInt[$1] ?? 0)
-        }
+        ints.compactMap { Weekday(rawValue: $0) }.sorted {
+            $0.rawValue < $1.rawValue
+        }.map { NSLocalizedString($0.labelKey, comment: "요일") }
     }
 }
