@@ -10,9 +10,10 @@ import SwiftUI
 struct AlarmSettingView: View {
 
     struct DayItem: Identifiable {
-        let name: String
+        let weekday: Weekday
         var isSelected: Bool
-        var id: String { name }
+        var id: Int { weekday.rawValue }
+        var labelKey: String { weekday.labelKey }
     }
     let isAlarmEnabled: Bool
     @Binding var time: Date
@@ -46,16 +47,16 @@ struct AlarmSettingView: View {
                     .colorScheme(.dark)
 
                     VStack {
-                        Text("요일")
+                        Text(NSLocalizedString("alarm_days", comment: "요일"))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .foregroundStyle(Color.white)
                             .font(.custom("Pretendard", size: 19))
                             .padding(.leading, 30)
                             .padding(.bottom, 17)
                         HStack(spacing: 9) {
-                            ForEach($days, id: \.name) { $day in
+                            ForEach($days, id: \.weekday) { $day in
                                 WeekdayToggleButton(
-                                    title: day.name,
+                                    title: NSLocalizedString(day.labelKey, comment: "요일"),
                                     isSelected: $day.isSelected
                                 )
                             }
@@ -65,7 +66,7 @@ struct AlarmSettingView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("볼륨")
+                            Text(NSLocalizedString("alarm_volume", comment: "볼륨"))
                                 .foregroundStyle(Color.white)
                                 .font(.custom("Pretendard", size: 19))
                             Spacer()
@@ -158,8 +159,8 @@ struct AlarmSettingView: View {
 
         // 선택된 요일을 Set<Int>로 변환
         let weekdays: Set<Int> = Set(
-            days.enumerated().compactMap { index, day in
-                day.isSelected ? index + 1 : nil
+            days.compactMap { day in
+                day.isSelected ? day.weekday.rawValue : nil
             }
         )
 
