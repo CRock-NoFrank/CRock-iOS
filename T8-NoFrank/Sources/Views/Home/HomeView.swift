@@ -29,6 +29,37 @@ struct HomeView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    private var nextAlarmWeekday: Weekday? {
+        let selectedWeekdays = Set(
+            alarmDays.compactMap { $0.isSelected ? $0.weekday.rawValue : nil }
+        )
+        guard !selectedWeekdays.isEmpty else { return nil }
+
+        let calendar = Calendar.current
+        let now = Date()
+        let comps = calendar.dateComponents([.hour, .minute], from: alarmTime)
+        let alarmHour = comps.hour ?? 0
+        let alarmMinute = comps.minute ?? 0
+
+        for dayOffset in 0..<7 {
+            let checkDate = calendar.date(byAdding: .day, value: dayOffset, to: now)!
+            let weekday = calendar.component(.weekday, from: checkDate)
+
+            if selectedWeekdays.contains(weekday) {
+                var candidate = calendar.dateComponents([.year, .month, .day], from: checkDate)
+                candidate.hour = alarmHour
+                candidate.minute = alarmMinute
+                candidate.second = 0
+
+                if let candidateDate = calendar.date(from: candidate),
+                   candidateDate > now {
+                    return Weekday(rawValue: weekday)
+                }
+            }
+        }
+        return nil
+    }
+
     var body: some View {
         ZStack {
             Image("Home_Background")
@@ -42,7 +73,7 @@ struct HomeView: View {
                 .edgesIgnoringSafeArea(.all)
 
             if isEnabled {
-                MovingRockSpriteView(isBreakable: false)
+                MovingRockSpriteView(isBreakable: false, weekday: nextAlarmWeekday)
                 Image("RotationGrass")
                     .resizable()
                     .scaledToFill()

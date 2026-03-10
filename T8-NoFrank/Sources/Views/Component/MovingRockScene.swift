@@ -15,6 +15,9 @@ class RockScene: SKScene, SKPhysicsContactDelegate {
     var isRockPain: Bool = false {
         didSet { updateRockTexture(updatePhysics: false) }
     }
+    var weekdayPrefix: String? = nil {
+        didSet { updateRockTexture(updatePhysics: true) }
+    }
 
     private let rockNode = SKSpriteNode()
     private var currentRockSize: CGSize = .zero
@@ -58,7 +61,12 @@ class RockScene: SKScene, SKPhysicsContactDelegate {
     }
 
     func updateRockTexture(updatePhysics: Bool) {
-        let imageName = "Rock\(rockPhase)\(isRockPain ? "pain" : "")"
+        let imageName: String
+        if let prefix = weekdayPrefix {
+            imageName = "\(prefix)/\(rockPhase)Stage\(isRockPain ? "_Bright" : "")"
+        } else {
+            imageName = "Rock\(rockPhase)\(isRockPain ? "pain" : "")"
+        }
         let texture = SKTexture(imageNamed: imageName)
         rockNode.texture = texture
 
@@ -158,6 +166,7 @@ class RockScene: SKScene, SKPhysicsContactDelegate {
 
 struct MovingRockSpriteView: View {
     @State var isBreakable: Bool
+    var weekday: Weekday? = nil
     @State var isClockEnd: Bool = false
 
     @StateObject private var sceneWrapper = SceneWrapper()
@@ -194,6 +203,7 @@ struct MovingRockSpriteView: View {
             .padding(.top, isBreakable ? 0 : 60)
             .opacity(isSceneReady ? 1 : 0)
             .onAppear {
+                sceneWrapper.scene.weekdayPrefix = weekday?.assetPrefix
                 sceneWrapper.scene.rockPhase = rockPhase
                 sceneWrapper.scene.isRockPain = isRockPain
 
@@ -202,6 +212,9 @@ struct MovingRockSpriteView: View {
                         isSceneReady = true
                     }
                 }
+            }
+            .onChange(of: weekday) { newValue in
+                sceneWrapper.scene.weekdayPrefix = newValue?.assetPrefix
             }
             .onChange(of: rockPhase) { newValue in
                 sceneWrapper.scene.rockPhase = newValue
