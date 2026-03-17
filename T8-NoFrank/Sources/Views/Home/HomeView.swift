@@ -102,6 +102,15 @@ struct HomeView: View {
             .presentationDetents([.fraction(0.7)])
             .presentationDragIndicator(.visible)
         }
+        .onChange(of: alarmVolume) { newValue in
+            // 볼륨 슬라이더가 바뀔 때마다 시스템 볼륨 동기화
+            // (앱 종료 후 알람킷 소리가 이 볼륨으로 나오게 됨)
+            BackgroundAudioPlayer.shared.updateSystemVolume(to: newValue)
+            UserDefaults(suiteName: AppConstants.appGroupID)!.set(
+                newValue,
+                forKey: "alarmVolume"
+            )
+        }
         .onChange(of: isModal) { newValue in
             if newValue == false {
                 persistAlarm()
