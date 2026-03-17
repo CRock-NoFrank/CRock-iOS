@@ -43,7 +43,7 @@ final class AlarmKitService {
     }
 
     // MARK: - 알람 스케줄 (실제 시간 기반)
-    func scheduleAlarm(date: Date) async -> Bool {
+    func scheduleAlarm(date: Date, isSilent: Bool = false) async -> Bool {
         // 기존 알람을 모두 제거한 뒤 새로 등록 (잔여 알람 포함)
         cancelAllAlarms()
 
@@ -51,6 +51,10 @@ final class AlarmKitService {
         allAlarmIDs = [alarmID]
 
         do {
+            let appGroupID = "group.CRockWidget"
+            let savedVolume = UserDefaults(suiteName: appGroupID)?.double(forKey: "alarmVolume") ?? 1.0
+            let targetVolume = Double(savedVolume)
+
             let alert: AlarmPresentation.Alert
             if #available(iOS 26.1, *) {
                 alert = .init(
@@ -68,8 +72,10 @@ final class AlarmKitService {
                 )
             }
 
+            let presentation = AlarmPresentation(alert: alert)
+
             let attributes = AlarmAttributes(
-                presentation: AlarmPresentation(alert: alert),
+                presentation: presentation,
                 metadata: AlarmMetadata(),
                 tintColor: Color("Orange1")
             )
@@ -79,7 +85,10 @@ final class AlarmKitService {
             #if targetEnvironment(simulator)
             let alarmSound: AlertConfiguration.AlertSound = .default
             #else
-            let alarmSound: AlertConfiguration.AlertSound = .named("NotiSound28sec.caf")
+            // 포그라운드(앱이 살아있음)일 때는 시스템 소리를 무음으로 예약하여 앱의 미디어 소리가 주도권을 잡게 함
+            // 백그라운드일 때는 실제 소리를 사용
+            let soundName = isSilent ? "Silent1s.caf" : "NotiSound28sec.caf"
+            let alarmSound: AlertConfiguration.AlertSound = .named(soundName)
             #endif
 
             let config = AlarmManager.AlarmConfiguration(
@@ -88,14 +97,27 @@ final class AlarmKitService {
                 stopIntent: StopAlarmIntent(),
                 sound: alarmSound
             )
-
             _ = try await AlarmManager.shared.schedule(id: alarmID, configuration: config)
-//            print("🔔 AlarmKit alarm scheduled for \(date.formatted()) (id: \(alarmID))")
+            print("🔔 AlarmKit scheduled (isSilent: \(isSilent), sound: \(isSilent ? "Silent1s" : "NotiSound28sec"))")
             return true
         } catch {
             print("❌ AlarmKit schedule failed: \(error)")
             allAlarmIDs = []
             return false
+        }
+    }
+
+    // MARK: - 현재 울리는 알람의 소리만 정지 (UI 유지 시도)
+    func stopCurrentAlarmSound() {
+        let ids = allAlarmIDs
+        for alarmID in ids {
+            do {
+                // stop은 현재 울리는 소리를 멈춥니다.
+                try AlarmManager.shared.stop(id: alarmID)
+                print("🔕 AlarmKit sound stopped via stopCurrentAlarmSound (id: \(alarmID))")
+            } catch {
+                // 울리고 있지 않으면 무시
+            }
         }
     }
 
@@ -125,7 +147,7 @@ final class AlarmKitService {
         allAlarmIDs = []
     }
 }
-#endif
+#endif  // canImport(AlarmKit)
 
 // MARK: - 브릿지 (항상 컴파일됨)
 enum AlarmKitAvailability {
@@ -137,21 +159,21 @@ enum AlarmKitAvailability {
                 await AlarmKitService.shared.requestAuthorization()
             }
         }
-        #endif
+        #endif  // canImport(AlarmKit)
     }
 
     /// AlarmKit 알람 스케줄 (실제 시간 기반)
-    static func scheduleAlarmIfAvailable(date: Date) {
+    static func scheduleAlarmIfAvailable(date: Date, isSilent: Bool = false) {
         #if canImport(AlarmKit)
         if #available(iOS 26.0, *) {
             Task {
-                let result = await AlarmKitService.shared.scheduleAlarm(date: date)
+                let result = await AlarmKitService.shared.scheduleAlarm(date: date, isSilent: isSilent)
                 if !result {
                     print("⚠️ AlarmKit schedule failed, will fall back to notification at alarm time")
                 }
             }
         }
-        #endif
+        #endif  // canImport(AlarmKit)
     }
 
     /// AlarmKit 알람 취소 (가능한 경우)
@@ -163,8 +185,18 @@ enum AlarmKitAvailability {
             NotificationService.cancelAllNotifications()
         }
         #else
-        NotificationExtension.cancelAllNotifications()
+        NotificationService.cancelAllNotifications()
+        #endif
+    }
+
+    /// AlarmKit 알람 소리만 중지 (가능한 경우)
+    static func stopCurrentAlarmSoundIfAvailable() {
+        #if canImport(AlarmKit)
+        if #available(iOS 26.0, *) {
+            AlarmKitService.shared.stopCurrentAlarmSound()
+        }
         #endif
     }
 }
+
 

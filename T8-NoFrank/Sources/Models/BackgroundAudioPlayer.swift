@@ -22,10 +22,38 @@ class BackgroundAudioPlayer: ObservableObject {
     private var selectedWeekdays: Set<Int> = []
     private var originalSystemVolume: Float = 0.0
     private var volumeRestorationTimer: Timer?
+    private var hasSwappedToSilent = false
 
     private init() {
         setupAudioSession()
         _ = AlarmCoordinator.shared // 인터럽트 옵저버 등록
+        setupAppStateObservers()
+    }
+
+    private func setupAppStateObservers() {
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // 앱이 백그라운드로 가면 혹시 모를 종료에 대비해 알람을 다시 소리 나는 모드로 변경
+            self?.refreshAlarmSoundMode(isSilent: false)
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // 앱이 다시 포그라운드로 오면 다시 무음 스왑 대기 상태로 초기화
+            self?.hasSwappedToSilent = false
+        }
+    }
+
+    private func refreshAlarmSoundMode(isSilent: Bool) {
+        guard let alarmTime = alarmTime, !isAlarmMode else { return }
+        AlarmKitAvailability.scheduleAlarmIfAvailable(date: alarmTime, isSilent: isSilent)
+        print("🔄 App state changed: Rescheduled AlarmKit (isSilent: \(isSilent))")
     }
 
     // MARK: - AlarmKit 인터럽트 후 재생 복원 (AlarmCoordinator에서 호출)
@@ -34,7 +62,8 @@ class BackgroundAudioPlayer: ObservableObject {
             // AlarmKit이 강제 종료됐지만 알람은 아직 울려야 하는 상태
             // → 오디오 세션 복구 후 앱 오디오로 알람 재생 + 알림 발송
             setupAudioSession()
-            audioPlayer?.volume = 1.0
+            let savedVolume = Float(UserDefaults(suiteName: "group.CRockWidget")?.double(forKey: "alarmVolume") ?? 1.0)
+            audioPlayer?.volume = savedVolume
             audioPlayer?.play()
             sendLocalNotification()
             print("🔔 AlarmKit 종료 감지 → 앱 오디오로 알람 재개")
@@ -45,14 +74,39 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - System Volume Control
+    func updateSystemVolume(to volume: Double) {
+        let targetVolume = Float(volume)
+        setSystemVolume(targetVolume)
+        print("📢 System volume updated from app: \(Int(targetVolume * 100))%")
+    }
+
     private func setSystemVolume(_ volume: Float) {
-        let volumeView = MPVolumeView()
-        if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                slider.value = volume
+        // 메인 스레드에서 실행 보장
+        DispatchQueue.main.async {
+            let volumeView = MPVolumeView(frame: CGRect(x: -100, y: -100, width: 1, height: 1))
+            volumeView.alpha = 0.01 // 거의 투명하게
+
+            // 최상위 윈도우에 잠시 추가하여 시스템 볼륨 제어권 확보
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first {
+                window.addSubview(volumeView)
+
+                // 레이아웃이 완료된 후 슬라이더를 찾아서 값 설정
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
+                        slider.value = volume
+                        print("📢 System volume successfully forced to: \(Int(volume * 100))%")
+                    } else {
+                        print("⚠️ MPVolumeView slider not found")
+                    }
+
+                    // 설정 후 제거
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        volumeView.removeFromSuperview()
+                    }
+                }
             }
         }
-        print("📢 System volume set to: \(Int(volume * 100))%")
     }
 
     private func getCurrentSystemVolume() -> Float {
@@ -60,18 +114,22 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Audio Session Setup
-    private func setupAudioSession() {
+    private func setupAudioSession(withDucking: Bool = false) {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            // playback: 백그라운드 재생 가능
-            // mixWithOthers: 다른 앱 오디오와 섞이지 않음
+            var options: AVAudioSession.CategoryOptions = [.mixWithOthers]
+            if withDucking {
+                options.insert(.duckOthers)
+            }
+            
+            // mode를 .videoChat으로 설정하면 시스템 알람과 섞일 때 더 강력한 우선순위를 가집니다.
             try audioSession.setCategory(
-                .playback,
-                mode: .default,
-                options: [.mixWithOthers] // 여기에 .mixWithOthers 옵션 추가
+                .playAndRecord,
+                mode: .videoChat,
+                options: options
             )
             try audioSession.setActive(true)
-            print("🔊 Audio session setup successful")
+            print("🔊 Audio session setup successful (mode: videoChat, ducking: \(withDucking))")
         } catch {
             print("❌ Failed to set up audio session: \(error)")
         }
@@ -134,7 +192,7 @@ class BackgroundAudioPlayer: ObservableObject {
         originalSystemVolume = getCurrentSystemVolume()
         print("💾 Original system volume: \(Int(originalSystemVolume * 100))%")
 
-        // 시스템 볼륨을 설정한 값으로 변경
+        // 시스템 볼륨을 설정한 값으로 변경 (Media Volume)
         setSystemVolume(targetVolume)
 
         isAlarmMode = true
@@ -143,18 +201,37 @@ class BackgroundAudioPlayer: ObservableObject {
         startVolumeRestorationTimer(targetVolume: targetVolume)
 
         if AlarmCoordinator.shared.isAlarmKitAvailable {
-            // iOS 26+: AlarmKit UI + 앱 오디오로 사운드 재생
-            // AlarmKit이 강제 종료돼도 앱 오디오가 이어받을 수 있도록 미리 재생
-            setupAudioSession()
-            audioPlayer?.volume = 1.0
+            // iOS 26+: AlarmKit UI를 띄우면서 앱의 미디어 소리가 주도권을 잡도록 함
+            // .duckOthers를 사용하여 다른 시스템 소리(알람킷)를 억제
+            setupAudioSession(withDucking: true)
+
+            audioPlayer?.volume = targetVolume
             audioPlayer?.play()
-            print("🔔 AlarmKit alarm fired, app audio also playing (target volume: \(Int(targetVolume * 100))%)")
+            
+            // 알람킷이 소리를 시작하며 세션을 가로채는 순간을 방어하기 위해
+            // 0.1초 간격으로 30회(3초간) 세션 활성화를 반복 시도 (강력한 탈환)
+            for i in 1...30 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.1) { [weak self] in
+                    guard let self = self, self.isAlarmMode else { return }
+                    
+                    let session = AVAudioSession.sharedInstance()
+                    try? session.setActive(true, options: .notifyOthersOnDeactivation)
+                    
+                    if self.audioPlayer?.isPlaying == false {
+                        self.audioPlayer?.play()
+                    }
+                    
+                    // 매번 볼륨 다시 강제 (사용자가 도중에 줄여도 다시 앱 볼륨으로 고정)
+                    self.setSystemVolume(targetVolume)
+                }
+            }
+            
+            print("🔔 Media Volume Dominance active. App audio forced to: \(Int(targetVolume * 100))%")
         } else {
             // iOS <26: BackgroundAudioPlayer 소리 + 로컬 노티
-        	// 앱 내부 볼륨은 최대로 설정
-            audioPlayer?.volume = 1.0
+            audioPlayer?.volume = targetVolume
             sendLocalNotification()
-        	print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
+            print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
         }
     }
 
@@ -189,12 +266,15 @@ class BackgroundAudioPlayer: ObservableObject {
     // MARK: - Volume Restoration Timer
     private func startVolumeRestorationTimer(targetVolume: Float) {
         volumeRestorationTimer?.invalidate()
-        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        // 0.5초마다 더 자주 체크하여 기기 시스템 볼륨을 강력하게 고정 (알라미 방식)
+        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self, self.isAlarmMode else { return }
+            
             let currentVolume = self.getCurrentSystemVolume()
-            if currentVolume < targetVolume {
+            // 사용자가 수동으로 볼륨을 내리거나, 시스템이 알람 볼륨을 다르게 가져가려고 할 때 강제로 앱 설정값으로 복원
+            if abs(currentVolume - targetVolume) > 0.05 {
                 self.setSystemVolume(targetVolume)
-                print("🔊 Volume restored: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
+                print("🔊 Volume Auto-Enforced: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
             }
         }
     }
@@ -239,6 +319,17 @@ class BackgroundAudioPlayer: ObservableObject {
 
         let now = Date()
 
+        // 알람 울리기 2초 전, 앱이 살아있다면 알람킷을 무음으로 재예약 (UI 유지용)
+        if now >= alarmTime.addingTimeInterval(-2.0) && now < alarmTime && !isAlarmMode {
+            if !hasSwappedToSilent {
+                print("⏳ Alarm almost due: swapping AlarmKit to silent to prioritize app audio.")
+                // 앱이 살아있으므로 AlarmKit은 무음으로 울리게 하여 UI만 띄우고,
+                // 실제 소리는 BackgroundAudioPlayer가 미디어 볼륨으로 재생함
+                AlarmKitAvailability.scheduleAlarmIfAvailable(date: alarmTime, isSilent: true)
+                hasSwappedToSilent = true
+            }
+        }
+
         // 알람 시간이 지났고, 아직 알람 모드가 아니라면
         if now >= alarmTime && !isAlarmMode {
             let currentWeekday = Calendar.current.component(.weekday, from: now)
@@ -251,6 +342,7 @@ class BackgroundAudioPlayer: ObservableObject {
                 let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
                 updateNextAlarmTime(hour: comps.hour ?? 0, minute: comps.minute ?? 0)
             }
+            hasSwappedToSilent = false
         }
     }
 
@@ -287,9 +379,9 @@ class BackgroundAudioPlayer: ObservableObject {
 
         self.alarmTime = nextAlarmDate
 
-        // iOS 26+: AlarmKit 알람도 같이 스케줄
+        // 기본적으로는 소리가 나는 알람으로 예약 (앱 종료 시 대비)
         if let nextDate = nextAlarmDate {
-            AlarmCoordinator.shared.scheduleNextAlarm(date: nextDate)
+            AlarmKitAvailability.scheduleAlarmIfAvailable(date: nextDate, isSilent: false)
         }
 
         print("📅 Next alarm time updated: \(nextAlarmDate?.formatted() ?? "nil")")
