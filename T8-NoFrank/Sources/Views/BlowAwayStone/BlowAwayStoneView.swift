@@ -19,6 +19,29 @@ struct BlowAwayStoneView: View {
     @State private var a2Offset: CGFloat = 0
     @State private var b2Offset: CGFloat = 0
 
+    private var weekdayPrefix: String? {
+        let raw = Calendar.current.component(.weekday, from: Date())
+        return Weekday(rawValue: raw)?.assetPrefix
+    }
+
+    private var nextAlarmWeekdayPrefix: String? {
+        let calendar = Calendar.current
+        let now = Date()
+        guard let selectedWeekdays = UserDefaults(suiteName: AppConstants.appGroupID)?
+            .array(forKey: "alarmSelectedWeekdays") as? [Int],
+              !selectedWeekdays.isEmpty else { return nil }
+        let selected = Set(selectedWeekdays)
+        // 오늘 알람은 이미 깼으므로 내일부터 탐색
+        for dayOffset in 1...7 {
+            let checkDate = calendar.date(byAdding: .day, value: dayOffset, to: now)!
+            let weekday = calendar.component(.weekday, from: checkDate)
+            if selected.contains(weekday) {
+                return Weekday(rawValue: weekday)?.assetPrefix
+            }
+        }
+        return nil
+    }
+
     var body: some View {
         ZStack {
             Image("Home_Background")
@@ -45,7 +68,7 @@ struct BlowAwayStoneView: View {
                 VStack {
                     Group {
                         if triggerActivated || blowDetector.blowStage == 3 {
-                            Image("stoneDustB1")
+                            Image(weekdayPrefix.map { "\($0)/Pebble3" } ?? "stoneDustB1")
                                 .offset(x: dustOffset)
                                 .opacity(
                                     1.0
@@ -55,10 +78,10 @@ struct BlowAwayStoneView: View {
                                         )
                                 )
                         } else if blowDetector.blowStage == 0 {
-                            Image("stoneDust")
+                            Image(weekdayPrefix.map { "\($0)/Pebble1" } ?? "stoneDust")
                         } else if blowDetector.blowStage == 1 {
-                            Image("stoneDustA1")
-                            Image("stoneDustA2")
+                            Image(weekdayPrefix.map { "\($0)/Pebble2" } ?? "stoneDustA1")
+                            Image(weekdayPrefix.map { "\($0)/Fallen Pebble2" } ?? "stoneDustA2")
                                 .offset(
                                     x: a2Offset * 2 - 20,
                                     y: a2Offset * 2 - 100
@@ -67,8 +90,8 @@ struct BlowAwayStoneView: View {
                                     1.0 - min(1.0, Double(abs(a2Offset / 100)))
                                 )
                         } else if blowDetector.blowStage == 2 {
-                            Image("stoneDustB1")
-                            Image("stoneDustB2")
+                            Image(weekdayPrefix.map { "\($0)/Pebble3" } ?? "stoneDustB1")
+                            Image(weekdayPrefix.map { "\($0)/Fallen Pebble3" } ?? "stoneDustB2")
                                 .offset(
                                     x: -b2Offset * 2 - 60,
                                     y: b2Offset * 2 - 100
@@ -82,7 +105,7 @@ struct BlowAwayStoneView: View {
                 }
                 .padding(.top, 426)
                 VStack {
-                    Image("RockDefault")
+                    Image(nextAlarmWeekdayPrefix.map { "\($0)/0Stage" } ?? "RockDefault")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 189, height: 230)
