@@ -50,14 +50,7 @@ class BackgroundAudioPlayer: ObservableObject {
         return AVAudioSession.sharedInstance().outputVolume
     }
 
-    // MARK: - 앱 볼륨 슬라이더 연동 (UI에서 호출)
-    func updateSystemVolume(to volume: Double) {
-        let targetVolume = Float(volume)
-        setSystemVolume(targetVolume)
-        print("📢 System volume updated from app: \(Int(targetVolume * 100))%")
-    }
-
-    // MARK: - Audio Session Setup
+// MARK: - Audio Session Setup
     func setupAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()

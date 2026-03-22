@@ -50,44 +50,24 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
         print("🔄 App state changed: Rescheduled AlarmKit (isSilent: \(isSilent))")
     }
 
-    // MARK: - AlarmKit 인터럽트 후 재생 복원 (AlarmCoordinator에서 호출)
+    // MARK: - 오디오 인터럽트 후 재생 복원 (전화 등 외부 인터럽트 대응)
     override func resumeAfterInterruption() {
         if isAlarmMode {
-            // 이미 알람 모드 → 세션 복구 후 소리 재생
+            // 알람 중 외부 인터럽트(전화 등) 종료 → 세션 복구 후 소리 재생
             setupAudioSession()
             let savedVolume = Float(UserDefaults(suiteName: "group.CRockWidget")?.double(forKey: "alarmVolume") ?? 1.0)
             setSystemVolume(savedVolume)
             audioPlayer?.volume = savedVolume
             audioPlayer?.play()
-            sendLocalNotification()
-            print("🔔 AlarmKit 인터럽트 종료 → 앱 오디오로 알람 재개")
-        } else if let alarmTime = alarmTime, Date() >= alarmTime {
-            // checkAlarmTime 타이머보다 인터럽트 종료가 먼저 도착한 경우 → 직접 알람 재생
-            let currentWeekday = Calendar.current.component(.weekday, from: Date())
-            if selectedWeekdays.contains(currentWeekday) {
-                print("🔔 AlarmKit 인터럽트 종료 → isAlarmMode=false지만 알람 시간 도달, 직접 재생")
-                playAlarmSound()
-            } else {
-                audioPlayer?.play()
-                audioPlayer?.volume = 0.0
-            }
+            print("🔔 인터럽트 종료 → 알람 재개")
         } else {
+            // 무음 재생 중 인터럽트 종료 → 무음으로 복원
             audioPlayer?.play()
             audioPlayer?.volume = 0.0
         }
     }
 
-    // MARK: - 앱 볼륨 슬라이더 연동 (UI에서 호출)
-    override func updateSystemVolume(to volume: Double) {
-        let targetVolume = Float(volume)
-        setSystemVolume(targetVolume)
-        if isAlarmMode {
-            audioPlayer?.volume = targetVolume
-        }
-        print("📢 System volume updated from app: \(Int(targetVolume * 100))%")
-    }
-
-    // MARK: - Play Alarm Sound (AlarmKit 인터럽트 후 세션 재확립)
+// MARK: - Play Alarm Sound (AlarmKit 인터럽트 후 세션 재확립)
     override func playAlarmSound() {
         // AlarmKit이 오디오 세션을 인터럽트했을 수 있으므로 먼저 세션을 재확립
         setupAudioSession()
@@ -107,11 +87,12 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
 
         let now = Date()
 
-        // 알람 2초 전: 앱이 살아있으므로 AlarmKit을 무음으로 재예약 (앱 오디오가 소리 담당)
+        // 알람 2초 전: 앱이 살아있으므로 AlarmKit을 완전 취소 (인터럽트 자체를 없앰)
+        // isSilent:true 재예약은 AlarmKit이 세션 인터럽트를 유지해서 앱 오디오를 차단하는 문제가 있음
         if now >= alarmTime.addingTimeInterval(-2.0) && now < alarmTime && !isAlarmMode {
             if !hasSwappedToSilent {
-                print("⏳ Alarm almost due: swapping AlarmKit to silent to prioritize app audio.")
-                AlarmKitAvailability.scheduleAlarmIfAvailable(date: alarmTime, isSilent: true)
+                print("⏳ Alarm almost due: cancelling AlarmKit so app audio can play cleanly.")
+                AlarmKitAvailability.cancelAlarmIfAvailable()
                 hasSwappedToSilent = true
             }
         }
