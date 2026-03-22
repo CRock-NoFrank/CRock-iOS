@@ -11,73 +11,28 @@ import UserNotifications
 import MediaPlayer
 
 class BackgroundAudioPlayer: ObservableObject {
-    static let shared = BackgroundAudioPlayer()
+    // iOS 26+에서는 BackgroundAudioPlayerIOS26 인스턴스를 반환
+    static let shared: BackgroundAudioPlayer = {
+        #if canImport(AlarmKit)
+        if #available(iOS 26.0, *) {
+            return BackgroundAudioPlayerIOS26()
+        }
+        #endif
+        return BackgroundAudioPlayer()
+    }()
 
     @Published var isPlaying = false
     @Published var isAlarmMode = false
 
-    private var audioPlayer: AVAudioPlayer?
-    private var alarmTime: Date?
-    private var checkTimer: Timer?
-    private var selectedWeekdays: Set<Int> = []
-    private var originalSystemVolume: Float = 0.0
-    private var volumeRestorationTimer: Timer?
-    private var hasSwappedToSilent = false
+    var audioPlayer: AVAudioPlayer?
+    var alarmTime: Date?
+    var checkTimer: Timer?
+    var selectedWeekdays: Set<Int> = []
+    var originalSystemVolume: Float = 0.0
+    var volumeRestorationTimer: Timer?
 
-    private init() {
+    init() {
         setupAudioSession()
-        _ = AlarmCoordinator.shared // 인터럽트 옵저버 등록
-        setupAppStateObservers()
-    }
-
-    private func setupAppStateObservers() {
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didEnterBackgroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            // 앱이 백그라운드로 가면 혹시 모를 종료에 대비해 알람을 다시 소리 나는 모드로 변경
-            self?.refreshAlarmSoundMode(isSilent: false)
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            // 앱이 다시 포그라운드로 오면 다시 무음 스왑 대기 상태로 초기화
-            self?.hasSwappedToSilent = false
-        }
-    }
-
-    private func refreshAlarmSoundMode(isSilent: Bool) {
-        guard let alarmTime = alarmTime, !isAlarmMode else { return }
-        AlarmKitAvailability.scheduleAlarmIfAvailable(date: alarmTime, isSilent: isSilent)
-        print("🔄 App state changed: Rescheduled AlarmKit (isSilent: \(isSilent))")
-    }
-
-    // MARK: - AlarmKit 인터럽트 후 재생 복원 (AlarmCoordinator에서 호출)
-    func resumeAfterInterruption() {
-        if isAlarmMode {
-            // AlarmKit이 강제 종료됐지만 알람은 아직 울려야 하는 상태
-            // → 오디오 세션 복구 후 앱 오디오로 알람 재생 + 알림 발송
-            setupAudioSession()
-            let savedVolume = Float(UserDefaults(suiteName: "group.CRockWidget")?.double(forKey: "alarmVolume") ?? 1.0)
-            if AlarmCoordinator.shared.isAlarmKitAvailable {
-                // iOS 26+: audioPlayer.volume으로 직접 제어
-                audioPlayer?.volume = savedVolume
-            } else {
-                // iOS <26: 시스템볼륨으로 제어
-                setSystemVolume(savedVolume)
-                audioPlayer?.volume = savedVolume
-            }
-            audioPlayer?.play()
-            sendLocalNotification()
-            print("🔔 AlarmKit 종료 감지 → 앱 오디오로 알람 재개")
-        } else {
-            audioPlayer?.play()
-            audioPlayer?.volume = 0.0
-        }
     }
 
     // MARK: - System Volume Control
@@ -87,56 +42,27 @@ class BackgroundAudioPlayer: ObservableObject {
         print("📢 System volume updated from app: \(Int(targetVolume * 100))%")
     }
 
-    private func setSystemVolume(_ volume: Float) {
-        // 메인 스레드에서 실행 보장
-        DispatchQueue.main.async {
-            let volumeView = MPVolumeView(frame: CGRect(x: -100, y: -100, width: 1, height: 1))
-            volumeView.alpha = 0.01 // 거의 투명하게
-
-            // 최상위 윈도우에 잠시 추가하여 시스템 볼륨 제어권 확보
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let window = windowScene.windows.first {
-                window.addSubview(volumeView)
-
-                // 레이아웃이 완료된 후 슬라이더를 찾아서 값 설정
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
-                        slider.value = volume
-                        print("📢 System volume successfully forced to: \(Int(volume * 100))%")
-                    } else {
-                        print("⚠️ MPVolumeView slider not found")
-                    }
-
-                    // 설정 후 제거
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        volumeView.removeFromSuperview()
-                    }
-                }
+    func setSystemVolume(_ volume: Float) {
+        let volumeView = MPVolumeView()
+        if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                slider.value = volume
             }
         }
+        print("📢 System volume set to: \(Int(volume * 100))%")
     }
 
-    private func getCurrentSystemVolume() -> Float {
+    func getCurrentSystemVolume() -> Float {
         return AVAudioSession.sharedInstance().outputVolume
     }
 
     // MARK: - Audio Session Setup
-    private func setupAudioSession(withDucking: Bool = false) {
+    func setupAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            if #available(iOS 26.0, *) {
-                // iOS 26+: AlarmKit과 공존을 위해 playAndRecord + videoChat 사용
-                var options: AVAudioSession.CategoryOptions = [.mixWithOthers]
-                if withDucking { options.insert(.duckOthers) }
-                try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: options)
-            } else {
-                // iOS <26: 시스템 볼륨 제어가 정상 동작하는 playback 사용
-                var options: AVAudioSession.CategoryOptions = []
-                if withDucking { options.insert(.duckOthers) }
-                try audioSession.setCategory(.playback, mode: .default, options: options)
-            }
+            try audioSession.setCategory(.playback, mode: .default, options: [])
             try audioSession.setActive(true)
-            print("🔊 Audio session setup successful (ducking: \(withDucking))")
+            print("🔊 Audio session setup successful")
         } catch {
             print("❌ Failed to set up audio session: \(error)")
         }
@@ -164,16 +90,13 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Play Silent Sound
-    private func playSilentSound() {
-        // 무음 톤 생성 (AVAudioEngine 사용)
-        // 또는 기존 무음 파일 사용
+    func playSilentSound() {
         guard let soundURL = Bundle.main.url(forResource: "NotiSound28sec", withExtension: "caf") else {
             print("❌ Sound file not found")
             return
         }
 
         do {
-            // 일단 알람 사운드를 매우 작은 볼륨으로 재생 (무음처럼)
             audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
             audioPlayer?.numberOfLoops = -1 // 무한 반복
             audioPlayer?.volume = 0.0 // 완전 무음
@@ -186,47 +109,51 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Play Alarm Sound
-    private func playAlarmSound() {
+    func playAlarmSound() {
         let appGroupID = "group.CRockWidget"
         let savedVolume = UserDefaults(suiteName: appGroupID)?.double(forKey: "alarmVolume")
-        let targetVolume = Float(savedVolume ?? 1.0)
+
         print("📊 Saved volume from UserDefaults: \(savedVolume ?? -1)")
 
+        let targetVolume = Float(savedVolume ?? 1.0)
+
+        // 현재 시스템 볼륨 저장
+        originalSystemVolume = getCurrentSystemVolume()
+        print("💾 Original system volume: \(Int(originalSystemVolume * 100))%")
+
+        // 시스템 볼륨을 설정한 값으로 변경
+        setSystemVolume(targetVolume)
+
+        // 앱 내부 볼륨은 최대로 설정
+        audioPlayer?.volume = 1.0
         isAlarmMode = true
 
-        if AlarmCoordinator.shared.isAlarmKitAvailable {
-            // iOS 26+: playAndRecord+videoChat 세션에서 시스템볼륨 변경이 적용되지 않으므로
-            // audioPlayer.volume으로 직접 제어
-            setupAudioSession(withDucking: true)
-            audioPlayer?.volume = targetVolume
+        // 주기적으로 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
+        startVolumeRestorationTimer(targetVolume: targetVolume)
+
+        sendLocalNotification()
+
+        print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
+    }
+
+    // MARK: - AlarmKit 인터럽트 후 재생 복원 (AlarmCoordinator에서 호출)
+    func resumeAfterInterruption() {
+        if isAlarmMode {
+            setupAudioSession()
+            let savedVolume = Float(UserDefaults(suiteName: "group.CRockWidget")?.double(forKey: "alarmVolume") ?? 1.0)
+            setSystemVolume(savedVolume)
+            audioPlayer?.volume = savedVolume
             audioPlayer?.play()
-
-            // AlarmKit이 세션을 가로채는 순간을 방어하기 위해 3초간 세션+볼륨 재탈환
-            for i in 1...30 {
-                DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.1) { [weak self] in
-                    guard let self = self, self.isAlarmMode else { return }
-                    try? AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
-                    if self.audioPlayer?.isPlaying == false { self.audioPlayer?.play() }
-                    self.audioPlayer?.volume = targetVolume
-                }
-            }
-
-            startVolumeRestorationTimer(targetVolume: targetVolume)
-            print("🔔 iOS 26+: audioPlayer.volume forced to \(Int(targetVolume * 100))%")
-        } else {
-            // iOS <26: 시스템볼륨 변경으로 제어 (참조 코드 방식)
-            originalSystemVolume = getCurrentSystemVolume()
-            print("💾 Original system volume: \(Int(originalSystemVolume * 100))%")
-            setSystemVolume(targetVolume)
-            audioPlayer?.volume = targetVolume
             sendLocalNotification()
-            startVolumeRestorationTimer(targetVolume: targetVolume)
-            print("🔔 iOS <26: system volume + audioPlayer.volume forced to \(Int(targetVolume * 100))%")
+            print("🔔 오디오 인터럽트 후 알람 재개")
+        } else {
+            audioPlayer?.play()
+            audioPlayer?.volume = 0.0
         }
     }
 
     // MARK: - Send Local Notification
-    private func sendLocalNotification() {
+    func sendLocalNotification() {
         let content = UNMutableNotificationContent()
         content.title = "CRock"
         content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
@@ -254,38 +181,26 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Volume Restoration Timer
-    private func startVolumeRestorationTimer(targetVolume: Float) {
+    func startVolumeRestorationTimer(targetVolume: Float) {
         volumeRestorationTimer?.invalidate()
-        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self, self.isAlarmMode else { return }
-
-            if AlarmCoordinator.shared.isAlarmKitAvailable {
-                // iOS 26+: audioPlayer.volume 강제 유지
-                let currentPlayerVolume = self.audioPlayer?.volume ?? 0
-                if abs(currentPlayerVolume - targetVolume) > 0.05 {
-                    self.audioPlayer?.volume = targetVolume
-                    print("🔊 Player Volume Auto-Enforced: \(Int(currentPlayerVolume * 100))% → \(Int(targetVolume * 100))%")
-                }
-            } else {
-                // iOS <26: 시스템볼륨 강제 유지
-                let currentVolume = self.getCurrentSystemVolume()
-                if abs(currentVolume - targetVolume) > 0.05 {
-                    self.setSystemVolume(targetVolume)
-                    print("🔊 System Volume Auto-Enforced: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
-                }
+            let currentVolume = self.getCurrentSystemVolume()
+            if currentVolume < targetVolume {
+                self.setSystemVolume(targetVolume)
+                print("🔊 Volume restored: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
             }
         }
     }
 
-    private func stopVolumeRestorationTimer() {
+    func stopVolumeRestorationTimer() {
         volumeRestorationTimer?.invalidate()
         volumeRestorationTimer = nil
     }
 
     // MARK: - App Termination Warning (Dead Man's Switch)
-    private func scheduleTerminationWarning() {
+    func scheduleTerminationWarning() {
         let center = UNUserNotificationCenter.current()
-        // 이전 경고 노티 취소 후 1초 뒤로 재예약
         center.removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
 
         let content = UNMutableNotificationContent()
@@ -303,58 +218,35 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Check Alarm Time
-    private func checkAlarmTime() {
+    func checkAlarmTime() {
         guard let alarmTime = alarmTime else { return }
 
-        // 알람 울리는 중이 아닐 때만 종료 경고 노티 예약
         if !isAlarmMode {
             scheduleTerminationWarning()
         } else {
-            // 알람 모드일 때는 경고 노티 취소
             UNUserNotificationCenter.current()
                 .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
         }
 
         let now = Date()
 
-        // 알람 울리기 2초 전, 앱이 살아있다면 알람킷을 무음으로 재예약 (UI 유지용)
-        if now >= alarmTime.addingTimeInterval(-2.0) && now < alarmTime && !isAlarmMode {
-            if !hasSwappedToSilent {
-                print("⏳ Alarm almost due: swapping AlarmKit to silent to prioritize app audio.")
-                // 앱이 살아있으므로 AlarmKit은 무음으로 울리게 하여 UI만 띄우고,
-                // 실제 소리는 BackgroundAudioPlayer가 미디어 볼륨으로 재생함
-                AlarmKitAvailability.scheduleAlarmIfAvailable(date: alarmTime, isSilent: true)
-                hasSwappedToSilent = true
-            }
-        }
-
-        // 알람 시간이 지났고, 아직 알람 모드가 아니라면
         if now >= alarmTime && !isAlarmMode {
             let currentWeekday = Calendar.current.component(.weekday, from: now)
 
-            // 현재 요일이 선택된 요일에 포함되어 있는지 확인
             if selectedWeekdays.contains(currentWeekday) {
                 playAlarmSound()
             } else {
-                // 선택되지 않은 요일이면 다음 알람 시간 업데이트
                 let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
                 updateNextAlarmTime(hour: comps.hour ?? 0, minute: comps.minute ?? 0)
             }
-            hasSwappedToSilent = false
         }
     }
 
     // MARK: - Update Next Alarm Time
-    private func updateNextAlarmTime(hour: Int, minute: Int) {
+    func updateNextAlarmTime(hour: Int, minute: Int) {
         let calendar = Calendar.current
         let now = Date()
 
-        var match = DateComponents()
-        match.hour = hour
-        match.minute = minute
-        match.second = 0
-
-        // 다음 발생 요일 찾기
         var nextAlarmDate: Date?
 
         for dayOffset in 0..<7 {
@@ -376,42 +268,21 @@ class BackgroundAudioPlayer: ObservableObject {
         }
 
         self.alarmTime = nextAlarmDate
-
-        // 기본적으로는 소리가 나는 알람으로 예약 (앱 종료 시 대비)
-        if let nextDate = nextAlarmDate {
-            AlarmKitAvailability.scheduleAlarmIfAvailable(date: nextDate, isSilent: false)
-        }
-
         print("📅 Next alarm time updated: \(nextAlarmDate?.formatted() ?? "nil")")
     }
 
     // MARK: - Stop Alarm and Back to Silent
     func stopAlarmAndBackToSilent() {
         guard isAlarmMode else { return }
-        AlarmCoordinator.shared.cancelAlarm()
 
-        // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 
-        // iOS <26에서만 시스템볼륨 복원 (iOS 26+는 audioPlayer.volume으로 제어했으므로 복원 불필요)
-        if !AlarmCoordinator.shared.isAlarmKitAvailable {
-            setSystemVolume(originalSystemVolume)
-            print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
-        }
+        setSystemVolume(originalSystemVolume)
+        print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
 
-        // 알람 소리를 무음으로 전환
         audioPlayer?.volume = 0.0
         isAlarmMode = false
 
-        // AlarmKit이 오디오 세션을 가져갔을 수 있으므로 복원
-        AlarmCoordinator.shared.recoverAudioSession()
-
-        print("🔍 stopAlarmAndBackToSilent: Before playSilentSound(), audioPlayer nil? \(audioPlayer == nil), isPlaying: \(audioPlayer?.isPlaying ?? false)")
-        // 오디오가 항상 재생되도록 보장
-        playSilentSound()
-        print("🔍 stopAlarmAndBackToSilent: After playSilentSound(), audioPlayer nil? \(audioPlayer == nil), isPlaying: \(audioPlayer?.isPlaying ?? false)")
-
-        // 다음 알람 시간 계산
         if let alarmTime = alarmTime {
             let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
             updateNextAlarmTime(hour: comps.hour ?? 0, minute: comps.minute ?? 0)
@@ -422,13 +293,9 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - Stop All
     func stopAll() {
-        AlarmCoordinator.shared.cancelAlarm()
-
-        // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 
-        // iOS <26 + 알람 모드였다면 시스템볼륨 복원
-        if isAlarmMode && !AlarmCoordinator.shared.isAlarmKitAvailable {
+        if isAlarmMode {
             setSystemVolume(originalSystemVolume)
             print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
         }
@@ -441,7 +308,6 @@ class BackgroundAudioPlayer: ObservableObject {
         isAlarmMode = false
         alarmTime = nil
 
-        // 알람 끄면 종료 경고 노티도 취소
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
 
