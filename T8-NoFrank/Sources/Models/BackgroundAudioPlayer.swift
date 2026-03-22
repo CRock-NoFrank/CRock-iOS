@@ -36,12 +36,6 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - System Volume Control
-    func updateSystemVolume(to volume: Double) {
-        let targetVolume = Float(volume)
-        setSystemVolume(targetVolume)
-        print("📢 System volume updated from app: \(Int(targetVolume * 100))%")
-    }
-
     func setSystemVolume(_ volume: Float) {
         let volumeView = MPVolumeView()
         if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
@@ -56,11 +50,23 @@ class BackgroundAudioPlayer: ObservableObject {
         return AVAudioSession.sharedInstance().outputVolume
     }
 
+    // MARK: - 앱 볼륨 슬라이더 연동 (UI에서 호출)
+    func updateSystemVolume(to volume: Double) {
+        let targetVolume = Float(volume)
+        setSystemVolume(targetVolume)
+        print("📢 System volume updated from app: \(Int(targetVolume * 100))%")
+    }
+
     // MARK: - Audio Session Setup
     func setupAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default, options: [])
+            // playback: 백그라운드 재생 가능
+            try audioSession.setCategory(
+                .playback,
+                mode: .default,
+                options: []
+            )
             try audioSession.setActive(true)
             print("🔊 Audio session setup successful")
         } catch {
@@ -97,6 +103,7 @@ class BackgroundAudioPlayer: ObservableObject {
         }
 
         do {
+            // 일단 알람 사운드를 매우 작은 볼륨으로 재생 (무음처럼)
             audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
             audioPlayer?.numberOfLoops = -1 // 무한 반복
             audioPlayer?.volume = 0.0 // 완전 무음
@@ -110,6 +117,7 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - Play Alarm Sound
     func playAlarmSound() {
+        // 저장된 볼륨 가져오기 (AppGroup 사용)
         let appGroupID = "group.CRockWidget"
         let savedVolume = UserDefaults(suiteName: appGroupID)?.double(forKey: "alarmVolume")
 
@@ -128,9 +136,10 @@ class BackgroundAudioPlayer: ObservableObject {
         audioPlayer?.volume = 1.0
         isAlarmMode = true
 
-        // 주기적으로 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
+        // 2초마다 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
         startVolumeRestorationTimer(targetVolume: targetVolume)
 
+        // 노티 1개만 전송
         sendLocalNotification()
 
         print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
@@ -201,6 +210,7 @@ class BackgroundAudioPlayer: ObservableObject {
     // MARK: - App Termination Warning (Dead Man's Switch)
     func scheduleTerminationWarning() {
         let center = UNUserNotificationCenter.current()
+        // 이전 경고 노티 취소 후 3초 뒤로 재예약
         center.removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
 
         let content = UNMutableNotificationContent()
@@ -221,21 +231,26 @@ class BackgroundAudioPlayer: ObservableObject {
     func checkAlarmTime() {
         guard let alarmTime = alarmTime else { return }
 
+        // 알람 울리는 중이 아닐 때만 종료 경고 노티 예약
         if !isAlarmMode {
             scheduleTerminationWarning()
         } else {
+            // 알람 모드일 때는 경고 노티 취소
             UNUserNotificationCenter.current()
                 .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
         }
 
         let now = Date()
 
+        // 알람 시간이 지났고, 아직 알람 모드가 아니라면
         if now >= alarmTime && !isAlarmMode {
             let currentWeekday = Calendar.current.component(.weekday, from: now)
 
+            // 현재 요일이 선택된 요일에 포함되어 있는지 확인
             if selectedWeekdays.contains(currentWeekday) {
                 playAlarmSound()
             } else {
+                // 선택되지 않은 요일이면 다음 알람 시간 업데이트
                 let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
                 updateNextAlarmTime(hour: comps.hour ?? 0, minute: comps.minute ?? 0)
             }
@@ -247,6 +262,12 @@ class BackgroundAudioPlayer: ObservableObject {
         let calendar = Calendar.current
         let now = Date()
 
+        var match = DateComponents()
+        match.hour = hour
+        match.minute = minute
+        match.second = 0
+
+        // 다음 발생 요일 찾기
         var nextAlarmDate: Date?
 
         for dayOffset in 0..<7 {
@@ -275,14 +296,18 @@ class BackgroundAudioPlayer: ObservableObject {
     func stopAlarmAndBackToSilent() {
         guard isAlarmMode else { return }
 
+        // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 
+        // 시스템 볼륨을 원래대로 복원
         setSystemVolume(originalSystemVolume)
         print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
 
+        // 알람 소리를 무음으로 전환
         audioPlayer?.volume = 0.0
         isAlarmMode = false
 
+        // 다음 알람 시간 계산
         if let alarmTime = alarmTime {
             let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
             updateNextAlarmTime(hour: comps.hour ?? 0, minute: comps.minute ?? 0)
@@ -293,8 +318,10 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - Stop All
     func stopAll() {
+        // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 
+        // 알람 모드였다면 시스템 볼륨 복원
         if isAlarmMode {
             setSystemVolume(originalSystemVolume)
             print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
@@ -308,6 +335,7 @@ class BackgroundAudioPlayer: ObservableObject {
         isAlarmMode = false
         alarmTime = nil
 
+        // 알람 끄면 종료 경고 노티도 취소
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
 
