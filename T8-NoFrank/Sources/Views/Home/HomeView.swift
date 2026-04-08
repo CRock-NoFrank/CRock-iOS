@@ -305,7 +305,8 @@ struct HomeView: View {
         }
 
         // 앱 시작 시 백그라운드 오디오 복원
-        if isEnabled {
+        // 알람이 울리는 중이면 silent sound 재시작하지 않음 (T8_NoFrankApp에서 breakingStone으로 이동)
+        if isEnabled && !BackgroundAudioPlayer.isAlarmRingingPersisted() {
             let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
             let hour = comps.hour ?? 0
             let minute = comps.minute ?? 0
