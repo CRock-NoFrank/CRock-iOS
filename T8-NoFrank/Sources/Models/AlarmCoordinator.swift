@@ -43,7 +43,11 @@ final class AlarmCoordinator {
                 // Deactivate the session first to clear any previous state
                 try? session.setActive(false, options: .notifyOthersOnDeactivation) // Try to deactivate, ignore if already inactive
 
-                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+                if self.isAlarmKitAvailable {
+                    try session.setCategory(.playAndRecord, mode: .videoChat, options: [.mixWithOthers])
+                } else {
+                    try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+                }
                 
                 // Keep the delay as it might still help with timing
                 try await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay

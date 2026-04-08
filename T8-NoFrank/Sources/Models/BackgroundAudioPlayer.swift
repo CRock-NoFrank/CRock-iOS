@@ -35,15 +35,36 @@ class BackgroundAudioPlayer: ObservableObject {
         setupAudioSession()
     }
 
+    func updateSystemVolume(to volume: Double) {
+        let targetVolume = Float(volume)
+        setSystemVolume(targetVolume)
+        print("📢 System volume updated from app: \(Int(targetVolume * 100))%")
+    }
+
     // MARK: - System Volume Control
     func setSystemVolume(_ volume: Float) {
-        let volumeView = MPVolumeView()
-        if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                slider.value = volume
+        DispatchQueue.main.async {
+            let volumeView = MPVolumeView(frame: CGRect(x: -100, y: -100, width: 1, height: 1))
+            volumeView.alpha = 0.01
+
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first {
+                window.addSubview(volumeView)
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
+                        slider.value = volume
+                        print("📢 System volume successfully forced to: \(Int(volume * 100))%")
+                    } else {
+                        print("⚠️ MPVolumeView slider not found")
+                    }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        volumeView.removeFromSuperview()
+                    }
+                }
             }
         }
-        print("📢 System volume set to: \(Int(volume * 100))%")
     }
 
     func getCurrentSystemVolume() -> Float {
@@ -51,17 +72,18 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
 // MARK: - Audio Session Setup
-    func setupAudioSession() {
+    func setupAudioSession(withDucking: Bool = false) {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            // playback: 백그라운드 재생 가능
+            var options: AVAudioSession.CategoryOptions = []
+            if withDucking { options.insert(.duckOthers) }
             try audioSession.setCategory(
                 .playback,
                 mode: .default,
-                options: []
+                options: options
             )
             try audioSession.setActive(true)
-            print("🔊 Audio session setup successful")
+            print("🔊 Audio session setup successful (ducking: \(withDucking))")
         } catch {
             print("❌ Failed to set up audio session: \(error)")
         }
@@ -110,10 +132,8 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - Play Alarm Sound
     func playAlarmSound() {
-        // 저장된 볼륨 가져오기 (AppGroup 사용)
         let appGroupID = "group.CRockWidget"
         let savedVolume = UserDefaults(suiteName: appGroupID)?.double(forKey: "alarmVolume")
-
         print("📊 Saved volume from UserDefaults: \(savedVolume ?? -1)")
 
         let targetVolume = Float(savedVolume ?? 1.0)
@@ -125,14 +145,10 @@ class BackgroundAudioPlayer: ObservableObject {
         // 시스템 볼륨을 설정한 값으로 변경
         setSystemVolume(targetVolume)
 
-        // 앱 내부 볼륨은 최대로 설정
-        audioPlayer?.volume = 1.0
+        audioPlayer?.volume = targetVolume
         isAlarmMode = true
 
-        // 2초마다 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
         startVolumeRestorationTimer(targetVolume: targetVolume)
-
-        // 노티 1개만 전송
         sendLocalNotification()
 
         print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
@@ -185,12 +201,12 @@ class BackgroundAudioPlayer: ObservableObject {
     // MARK: - Volume Restoration Timer
     func startVolumeRestorationTimer(targetVolume: Float) {
         volumeRestorationTimer?.invalidate()
-        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self, self.isAlarmMode else { return }
             let currentVolume = self.getCurrentSystemVolume()
-            if currentVolume < targetVolume {
+            if abs(currentVolume - targetVolume) > 0.05 {
                 self.setSystemVolume(targetVolume)
-                print("🔊 Volume restored: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
+                print("🔊 System Volume Auto-Enforced: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
             }
         }
     }

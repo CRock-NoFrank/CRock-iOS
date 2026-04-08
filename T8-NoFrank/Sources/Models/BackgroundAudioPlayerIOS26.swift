@@ -30,7 +30,7 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // 백그라운드 전환 시 AlarmKit을 소리 있는 알람으로 재예약 (앱 종료 대비)
+            // 앱이 백그라운드로 가면 혹시 모를 종료에 대비해 알람을 다시 소리 나는 모드로 변경
             self?.refreshAlarmSoundMode(isSilent: false)
         }
 
@@ -39,7 +39,7 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // 포그라운드 복귀 시 무음 스왑 대기 상태로 초기화
+            // 앱이 다시 포그라운드로 오면 다시 무음 스왑 대기 상태로 초기화
             self?.hasSwappedToSilent = false
         }
     }
@@ -50,18 +50,31 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
         print("🔄 App state changed: Rescheduled AlarmKit (isSilent: \(isSilent))")
     }
 
+    override func setupAudioSession(withDucking: Bool = false) {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            var options: AVAudioSession.CategoryOptions = [.mixWithOthers]
+            if withDucking { options.insert(.duckOthers) }
+            try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: options)
+            try audioSession.setActive(true)
+            print("🔊 Audio session setup successful (ducking: \(withDucking))")
+        } catch {
+            print("❌ Failed to set up audio session: \(error)")
+        }
+    }
+
     // MARK: - 오디오 인터럽트 후 재생 복원 (전화 등 외부 인터럽트 대응)
     override func resumeAfterInterruption() {
         if isAlarmMode {
-            // 알람 중 외부 인터럽트(전화 등) 종료 → 세션 복구 후 소리 재생
+            // AlarmKit이 강제 종료됐지만 알람은 아직 울려야 하는 상태
+            // → 오디오 세션 복구 후 앱 오디오로 알람 재생 + 알림 발송
             setupAudioSession()
             let savedVolume = Float(UserDefaults(suiteName: "group.CRockWidget")?.double(forKey: "alarmVolume") ?? 1.0)
-            setSystemVolume(savedVolume)
             audioPlayer?.volume = savedVolume
             audioPlayer?.play()
+            sendLocalNotification()
             print("🔔 인터럽트 종료 → 알람 재개")
         } else {
-            // 무음 재생 중 인터럽트 종료 → 무음으로 복원
             audioPlayer?.play()
             audioPlayer?.volume = 0.0
         }
@@ -69,12 +82,45 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
 
 // MARK: - Play Alarm Sound (AlarmKit 인터럽트 후 세션 재확립)
     override func playAlarmSound() {
-        // AlarmKit이 오디오 세션을 인터럽트했을 수 있으므로 먼저 세션을 재확립
-        setupAudioSession()
-        super.playAlarmSound()
+        let appGroupID = "group.CRockWidget"
+        let savedVolume = UserDefaults(suiteName: appGroupID)?.double(forKey: "alarmVolume")
+        let targetVolume = Float(savedVolume ?? 1.0)
+        print("📊 Saved volume from UserDefaults: \(savedVolume ?? -1)")
+
+        isAlarmMode = true
+
+        setupAudioSession(withDucking: true)
+        audioPlayer?.volume = targetVolume
+        audioPlayer?.play()
+
+        for i in 1...30 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.1) { [weak self] in
+                guard let self, self.isAlarmMode else { return }
+                try? AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+                if self.audioPlayer?.isPlaying == false {
+                    self.audioPlayer?.play()
+                }
+                self.audioPlayer?.volume = targetVolume
+            }
+        }
+
+        startVolumeRestorationTimer(targetVolume: targetVolume)
+        print("🔔 iOS 26+: audioPlayer.volume forced to \(Int(targetVolume * 100))%")
     }
 
-    // MARK: - Check Alarm Time (AlarmKit 2초 전 무음 스왑 추가)
+    override func startVolumeRestorationTimer(targetVolume: Float) {
+        volumeRestorationTimer?.invalidate()
+        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            guard let self, self.isAlarmMode else { return }
+            let currentPlayerVolume = self.audioPlayer?.volume ?? 0
+            if abs(currentPlayerVolume - targetVolume) > 0.05 {
+                self.audioPlayer?.volume = targetVolume
+                print("🔊 Player Volume Auto-Enforced: \(Int(currentPlayerVolume * 100))% → \(Int(targetVolume * 100))%")
+            }
+        }
+    }
+
+    // MARK: - Check Alarm Time
     override func checkAlarmTime() {
         guard let alarmTime = alarmTime else { return }
 
@@ -87,12 +133,11 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
 
         let now = Date()
 
-        // 알람 2초 전: 앱이 살아있으므로 AlarmKit을 완전 취소 (인터럽트 자체를 없앰)
-        // isSilent:true 재예약은 AlarmKit이 세션 인터럽트를 유지해서 앱 오디오를 차단하는 문제가 있음
+        // 알람 울리기 2초 전, 앱이 살아있다면 알람킷을 무음으로 재예약 (UI 유지용)
         if now >= alarmTime.addingTimeInterval(-2.0) && now < alarmTime && !isAlarmMode {
             if !hasSwappedToSilent {
-                print("⏳ Alarm almost due: cancelling AlarmKit so app audio can play cleanly.")
-                AlarmKitAvailability.cancelAlarmIfAvailable()
+                print("⏳ Alarm almost due: swapping AlarmKit to silent to prioritize app audio.")
+                AlarmKitAvailability.scheduleAlarmIfAvailable(date: alarmTime, isSilent: true)
                 hasSwappedToSilent = true
             }
         }
@@ -137,7 +182,6 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
 
         self.alarmTime = nextAlarmDate
 
-        // 기본적으로는 소리 있는 알람으로 예약 (앱 종료 시 AlarmKit이 소리 담당)
         if let nextDate = nextAlarmDate {
             AlarmKitAvailability.scheduleAlarmIfAvailable(date: nextDate, isSilent: false)
         }
@@ -152,18 +196,11 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
 
         stopVolumeRestorationTimer()
 
-        setSystemVolume(originalSystemVolume)
-        print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
-
         audioPlayer?.volume = 0.0
         isAlarmMode = false
 
-        // AlarmKit이 오디오 세션을 가져갔을 수 있으므로 복원
         AlarmCoordinator.shared.recoverAudioSession()
-
-        print("🔍 stopAlarmAndBackToSilent: Before playSilentSound(), audioPlayer nil? \(audioPlayer == nil), isPlaying: \(audioPlayer?.isPlaying ?? false)")
         playSilentSound()
-        print("🔍 stopAlarmAndBackToSilent: After playSilentSound(), audioPlayer nil? \(audioPlayer == nil), isPlaying: \(audioPlayer?.isPlaying ?? false)")
 
         if let alarmTime = alarmTime {
             let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
@@ -178,11 +215,6 @@ final class BackgroundAudioPlayerIOS26: BackgroundAudioPlayer {
         AlarmCoordinator.shared.cancelAlarm()
 
         stopVolumeRestorationTimer()
-
-        if isAlarmMode {
-            setSystemVolume(originalSystemVolume)
-            print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
-        }
 
         audioPlayer?.stop()
         audioPlayer = nil
