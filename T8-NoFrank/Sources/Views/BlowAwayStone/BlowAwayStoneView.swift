@@ -81,7 +81,7 @@ struct BlowAwayStoneView: View {
                             Image(weekdayPrefix.map { "\($0)/Pebble1" } ?? "stoneDust")
                         } else if blowDetector.blowStage == 1 {
                             Image(weekdayPrefix.map { "\($0)/Pebble2" } ?? "stoneDustA1")
-                            Image(weekdayPrefix.map { "\($0)/Fallen Pebble2" } ?? "stoneDustA2")
+                            Image(weekdayPrefix.map { "\($0)/Fallen_Pebble2" } ?? "stoneDustA2")
                                 .offset(
                                     x: a2Offset * 2 - 20,
                                     y: a2Offset * 2 - 100
@@ -91,7 +91,7 @@ struct BlowAwayStoneView: View {
                                 )
                         } else if blowDetector.blowStage == 2 {
                             Image(weekdayPrefix.map { "\($0)/Pebble3" } ?? "stoneDustB1")
-                            Image(weekdayPrefix.map { "\($0)/Fallen Pebble3" } ?? "stoneDustB2")
+                            Image(weekdayPrefix.map { "\($0)/Fallen_Pebble3" } ?? "stoneDustB2")
                                 .offset(
                                     x: -b2Offset * 2 - 60,
                                     y: b2Offset * 2 - 100
