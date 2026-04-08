@@ -114,16 +114,15 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Audio Session Setup
-    private func setupAudioSession() {
+    func setupAudioSession(withDucking: Bool = false) {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            // mixWithOthers: 다른 앱(유튜브, 음악 등)이 재생 중에도 오디오 세션을 유지
-            // → 인터럽트로 인한 앱 Suspend를 방지하여 Dead Man's Switch 타이머가 멈추지 않음
-            // 무음(0.0) 재생이므로 다른 앱 오디오에 영향 없음
+            var options: AVAudioSession.CategoryOptions = [.mixWithOthers]
+            if withDucking { options.insert(.duckOthers) }
             try audioSession.setCategory(
                 .playback,
                 mode: .default,
-                options: [.mixWithOthers]
+                options: options
             )
             try audioSession.setActive(true)
             print("🔊 Audio session setup successful (ducking: \(withDucking))")
