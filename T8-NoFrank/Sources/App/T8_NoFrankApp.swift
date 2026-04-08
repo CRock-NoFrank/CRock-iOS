@@ -33,6 +33,10 @@ struct T8_NoFrankApp: App {
                 if BackgroundAudioPlayer.shared.isAlarmMode {
                     router.navigate(.breakingStone)
                 }
+                // 오디오 세션 인터럽트(전화, 유튜브 등) 이후 복원
+                if BackgroundAudioPlayer.shared.isPlaying {
+                    BackgroundAudioPlayer.shared.restoreAudioSession()
+                }
             @unknown default:
                 break
             }

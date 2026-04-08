@@ -33,6 +33,7 @@ class BackgroundAudioPlayer: ObservableObject {
 
     init() {
         setupAudioSession()
+        setupInterruptionObserver()
     }
 
     func updateSystemVolume(to volume: Double) {
@@ -71,16 +72,58 @@ class BackgroundAudioPlayer: ObservableObject {
         return AVAudioSession.sharedInstance().outputVolume
     }
 
-// MARK: - Audio Session Setup
-    func setupAudioSession(withDucking: Bool = false) {
+    // MARK: - Audio Session Interruption Handling
+    private func setupInterruptionObserver() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    @objc private func handleAudioInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+        else { return }
+
+        switch type {
+        case .began:
+            print("🔇 Audio session interrupted (phone call, Siri, etc.)")
+
+        case .ended:
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+
+            if options.contains(.shouldResume), isPlaying {
+                print("🔊 Audio session interruption ended - restoring")
+                restoreAudioSession()
+            }
+
+        @unknown default:
+            break
+        }
+    }
+
+    func restoreAudioSession() {
+        guard isPlaying else { return }
+        setupAudioSession()
+        audioPlayer?.play()
+        print("🔊 Audio session restored")
+    }
+
+    // MARK: - Audio Session Setup
+    private func setupAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            var options: AVAudioSession.CategoryOptions = []
-            if withDucking { options.insert(.duckOthers) }
+            // mixWithOthers: 다른 앱(유튜브, 음악 등)이 재생 중에도 오디오 세션을 유지
+            // → 인터럽트로 인한 앱 Suspend를 방지하여 Dead Man's Switch 타이머가 멈추지 않음
+            // 무음(0.0) 재생이므로 다른 앱 오디오에 영향 없음
             try audioSession.setCategory(
                 .playback,
                 mode: .default,
-                options: options
+                options: [.mixWithOthers]
             )
             try audioSession.setActive(true)
             print("🔊 Audio session setup successful (ducking: \(withDucking))")
