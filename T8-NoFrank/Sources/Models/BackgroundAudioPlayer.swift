@@ -22,6 +22,15 @@ class BackgroundAudioPlayer: ObservableObject {
     private var selectedWeekdays: Set<Int> = []
     private var originalSystemVolume: Float = 0.0
     private var volumeRestorationTimer: Timer?
+    private var lastBurstScheduleTime: Date?
+
+    private static let appGroupID = "group.CRockWidget"
+    private static let isAlarmRingingKey = "isAlarmRinging"
+    private static let alarmRingingTimestampKey = "alarmRingingTimestamp"
+    private static let originalVolumeKey = "originalSystemVolume"
+    private static let burstCount = 60
+    private static let burstIntervalSec: TimeInterval = 30
+    private static let burstIdentifierPrefix = "ALARM_BURST_"
 
     private init() {
         setupAudioSession()
@@ -147,31 +156,56 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Play Alarm Sound
-    private func playAlarmSound() {
+    func playAlarmSound() {
         // 저장된 볼륨 가져오기 (AppGroup 사용)
-        let appGroupID = "group.CRockWidget"
-        let savedVolume = UserDefaults(suiteName: appGroupID)?.double(forKey: "alarmVolume")
+        let savedVolume = UserDefaults(suiteName: Self.appGroupID)?.double(forKey: "alarmVolume")
 
         print("📊 Saved volume from UserDefaults: \(savedVolume ?? -1)")
 
         let targetVolume = Float(savedVolume ?? 1.0)
 
-        // 현재 시스템 볼륨 저장
+        // 현재 시스템 볼륨 저장 (재실행 복원용으로 UserDefaults에도 저장)
         originalSystemVolume = getCurrentSystemVolume()
+        UserDefaults(suiteName: Self.appGroupID)?.set(
+            Double(originalSystemVolume), forKey: Self.originalVolumeKey
+        )
         print("💾 Original system volume: \(Int(originalSystemVolume * 100))%")
 
         // 시스템 볼륨을 설정한 값으로 변경
         setSystemVolume(targetVolume)
 
+        // audioPlayer가 없으면 (강제 종료 후 재실행) 새로 생성
+        if audioPlayer == nil {
+            guard let soundURL = Bundle.main.url(forResource: "NotiSound28sec", withExtension: "caf") else {
+                print("❌ Sound file not found")
+                return
+            }
+            do {
+                audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
+                audioPlayer?.numberOfLoops = -1
+                audioPlayer?.prepareToPlay()
+                audioPlayer?.play()
+            } catch {
+                print("❌ Failed to create audio player: \(error)")
+                return
+            }
+        }
+
         // 앱 내부 볼륨은 최대로 설정
         audioPlayer?.volume = 1.0
         isAlarmMode = true
+
+        // 알람 상태 영속화 (강제 종료 후 복원용)
+        persistAlarmRinging(true)
 
         // 2초마다 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
         startVolumeRestorationTimer(targetVolume: targetVolume)
 
         // 노티 1개만 전송
         sendLocalNotification()
+
+        // 강제 종료 대비 burst 노티 60개 예약
+        scheduleAlarmBurst()
 
         print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
     }
@@ -202,6 +236,97 @@ class BackgroundAudioPlayer: ObservableObject {
                 print("📬 Notification sent successfully")
             }
         }
+    }
+
+    // MARK: - Alarm Ringing Persistence
+    private func persistAlarmRinging(_ ringing: Bool) {
+        let ud = UserDefaults(suiteName: Self.appGroupID)
+        ud?.set(ringing, forKey: Self.isAlarmRingingKey)
+        if ringing {
+            ud?.set(Date().timeIntervalSince1970, forKey: Self.alarmRingingTimestampKey)
+        } else {
+            ud?.removeObject(forKey: Self.alarmRingingTimestampKey)
+            ud?.removeObject(forKey: Self.originalVolumeKey)
+        }
+    }
+
+    /// 강제 종료 후 재실행 시 알람 상태 확인 (30분 이내만 유효)
+    static func isAlarmRingingPersisted() -> Bool {
+        let ud = UserDefaults(suiteName: appGroupID)
+        guard ud?.bool(forKey: isAlarmRingingKey) == true,
+              let timestamp = ud?.double(forKey: alarmRingingTimestampKey),
+              timestamp > 0
+        else { return false }
+
+        let elapsed = Date().timeIntervalSince1970 - timestamp
+        // burst 60개 × 30초 = 1800초(30분) 이내만 유효
+        return elapsed < Double(burstCount) * burstIntervalSec
+    }
+
+    /// 영속화된 알람 상태 초기화
+    static func clearAlarmRingingPersistence() {
+        let ud = UserDefaults(suiteName: appGroupID)
+        ud?.set(false, forKey: isAlarmRingingKey)
+        ud?.removeObject(forKey: alarmRingingTimestampKey)
+        ud?.removeObject(forKey: originalVolumeKey)
+    }
+
+    /// 영속화된 원래 시스템 볼륨 복원
+    func restoreOriginalVolumeFromPersistence() {
+        if let saved = UserDefaults(suiteName: Self.appGroupID)?.double(forKey: Self.originalVolumeKey),
+           saved > 0 {
+            originalSystemVolume = Float(saved)
+        } else {
+            originalSystemVolume = getCurrentSystemVolume()
+        }
+    }
+
+    // MARK: - Alarm Burst Notifications (강제 종료 대비)
+    private func scheduleAlarmBurst() {
+        let center = UNUserNotificationCenter.current()
+
+        // 기존 burst 취소
+        cancelAlarmBurst()
+
+        for i in 0..<Self.burstCount {
+            let content = UNMutableNotificationContent()
+            content.title = "CRock"
+            content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
+            content.userInfo = ["targetScreen": "BreakingStone"]
+            content.sound = UNNotificationSound(named: .init("NotiSound28sec.caf"))
+
+            if #available(iOS 15.0, *) {
+                content.interruptionLevel = .timeSensitive
+            }
+
+            let delay = Self.burstIntervalSec * Double(i + 1) // 30, 60, 90 ...
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+            let request = UNNotificationRequest(
+                identifier: "\(Self.burstIdentifierPrefix)\(i)",
+                content: content,
+                trigger: trigger
+            )
+            center.add(request)
+        }
+        lastBurstScheduleTime = Date()
+        print("📬 Alarm burst scheduled: \(Self.burstCount) notifications")
+    }
+
+    func cancelAlarmBurst() {
+        let ids = (0..<Self.burstCount).map { "\(Self.burstIdentifierPrefix)\($0)" }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+        lastBurstScheduleTime = nil
+        print("🗑️ Alarm burst cancelled")
+    }
+
+    /// 앱이 살아있는 동안 burst를 계속 뒤로 밀어서 발사 방지 (Dead Man's Switch)
+    private func refreshBurstIfNeeded() {
+        guard isAlarmMode else { return }
+        // 5초마다 burst 재예약
+        if let last = lastBurstScheduleTime, Date().timeIntervalSince(last) < 5 { return }
+        scheduleAlarmBurst()
     }
 
     // MARK: - Volume Restoration Timer
@@ -253,6 +378,8 @@ class BackgroundAudioPlayer: ObservableObject {
             // 알람 모드일 때는 경고 노티 취소
             UNUserNotificationCenter.current()
                 .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+            // burst 노티를 계속 뒤로 밀어서 앱 살아있는 동안은 발사 안 되게
+            refreshBurstIfNeeded()
         }
 
         let now = Date()
@@ -322,6 +449,10 @@ class BackgroundAudioPlayer: ObservableObject {
         audioPlayer?.volume = 0.0
         isAlarmMode = false
 
+        // 영속화 상태 초기화 + burst 취소
+        persistAlarmRinging(false)
+        cancelAlarmBurst()
+
         // 다음 알람 시간 계산
         if let alarmTime = alarmTime {
             let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
@@ -349,6 +480,10 @@ class BackgroundAudioPlayer: ObservableObject {
         isPlaying = false
         isAlarmMode = false
         alarmTime = nil
+
+        // 영속화 상태 초기화 + burst 취소
+        persistAlarmRinging(false)
+        cancelAlarmBurst()
 
         // 알람 끄면 종료 경고 노티도 취소
         UNUserNotificationCenter.current()
