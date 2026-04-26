@@ -163,6 +163,7 @@ extension NotificationDelegate {
                 AppRouter.shared.navigate(.home)
             }
         } else {
+            // burst 노티 또는 일반 알람 노티 → 돌 깨기 화면으로
             Task { @MainActor in
                 AppRouter.shared.navigate(.breakingStone)
             }

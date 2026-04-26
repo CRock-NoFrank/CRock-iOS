@@ -52,8 +52,9 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler:
             @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // 앱이 살아있는 상태에서는 종료 경고 알림을 표시하지 않음
-        if notification.request.identifier == "appTerminationWarning" {
+        let id = notification.request.identifier
+        // 앱이 살아있는 상태에서는 종료 경고/burst 알림을 표시하지 않음
+        if id == "appTerminationWarning" || id.hasPrefix("ALARM_BURST_") {
             completionHandler([])
             return
         }

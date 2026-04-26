@@ -185,6 +185,8 @@ struct BlowAwayStoneView: View {
 
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
+            // 알람 정지 + burst 노티 정리 + 퍼시스턴스 초기화
+            BackgroundAudioPlayer.shared.stopAlarmAndBackToSilent()
             AppRouter.shared.navigate(.home)
         }
     }
