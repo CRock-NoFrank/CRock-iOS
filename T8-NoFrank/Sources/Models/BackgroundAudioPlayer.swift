@@ -22,15 +22,18 @@ class BackgroundAudioPlayer: ObservableObject {
     private var selectedWeekdays: Set<Int> = []
     private var originalSystemVolume: Float = 0.0
     private var volumeRestorationTimer: Timer?
-    private var lastBurstScheduleTime: Date?
 
     private static let appGroupID = "group.CRockWidget"
     private static let isAlarmRingingKey = "isAlarmRinging"
     private static let alarmRingingTimestampKey = "alarmRingingTimestamp"
     private static let originalVolumeKey = "originalSystemVolume"
-    private static let burstCount = 60
-    private static let burstIntervalSec: TimeInterval = 30
-    private static let burstIdentifierPrefix = "ALARM_BURST_"
+    // Burst 노티 — UNCalendarNotificationTrigger로 매 분 0/2/4/.../58초마다 발동.
+    // 시계 기반이라 알람 fire/강제 종료 시점 무관하게 ≤2초 안에 첫 노티 + 영원히 균일 반복.
+    private static let burstCount = 30
+    private static let burstIntervalSec: TimeInterval = 2
+    private static let burstPrefix = "ALARM_BURST_"
+    private static let alarmSoundName = "stone2_1.caf"
+    private static let alarmRingingMaxDurationSec: TimeInterval = 1800  // 30분 영속화 만료
 
     private init() {
         setupAudioSession()
@@ -204,7 +207,7 @@ class BackgroundAudioPlayer: ObservableObject {
         // 노티 1개만 전송
         sendLocalNotification()
 
-        // 강제 종료 대비 burst 노티 60개 예약
+        // 강제 종료 대비 burst 노티 예약 (UNCalendar 시계 기반, 매 2초 균일 무한 반복)
         scheduleAlarmBurst()
 
         print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
@@ -259,8 +262,7 @@ class BackgroundAudioPlayer: ObservableObject {
         else { return false }
 
         let elapsed = Date().timeIntervalSince1970 - timestamp
-        // burst 60개 × 30초 = 1800초(30분) 이내만 유효
-        return elapsed < Double(burstCount) * burstIntervalSec
+        return elapsed < alarmRingingMaxDurationSec
     }
 
     /// 영속화된 알람 상태 초기화
@@ -282,51 +284,58 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Alarm Burst Notifications (강제 종료 대비)
+
+    /// UNCalendarNotificationTrigger로 매 분 0, 2, 4, ..., 58초에 발동되는 노티 30개 등록.
+    /// 시계 기반이라 알람 fire/강제 종료 시점 무관하게 ≤2초 안에 첫 노티 + 영원히 매 2초 균일 반복.
+    /// 앱 살아있는 동안에도 발동되지만 willPresent에서 prefix 필터링으로 화면/사운드 차단됨.
     private func scheduleAlarmBurst() {
         let center = UNUserNotificationCenter.current()
 
-        // 기존 burst 취소
-        cancelAlarmBurst()
+        // 중복 방지 — 기존 burst cancel 후 새로 등록
+        let ids = (0..<Self.burstCount).map { "\(Self.burstPrefix)\($0)" }
+        center.removePendingNotificationRequests(withIdentifiers: ids)
 
         for i in 0..<Self.burstCount {
             let content = UNMutableNotificationContent()
             content.title = "CRock"
             content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
             content.userInfo = ["targetScreen": "BreakingStone"]
-            content.sound = UNNotificationSound(named: .init("NotiSound28sec.caf"))
+            content.sound = UNNotificationSound(named: .init(Self.alarmSoundName))
 
             if #available(iOS 15.0, *) {
                 content.interruptionLevel = .timeSensitive
             }
 
-            let delay = Self.burstIntervalSec * Double(i + 1) // 30, 60, 90 ...
-            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+            // 매 분의 0, 2, 4, ..., 58초에 발동 (30개 × 2초 = 60초 사이클)
+            var components = DateComponents()
+            components.second = Int(Double(i) * Self.burstIntervalSec)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+
             let request = UNNotificationRequest(
-                identifier: "\(Self.burstIdentifierPrefix)\(i)",
+                identifier: "\(Self.burstPrefix)\(i)",
                 content: content,
                 trigger: trigger
             )
             center.add(request)
         }
-        lastBurstScheduleTime = Date()
-        print("📬 Alarm burst scheduled: \(Self.burstCount) notifications")
+        print("📬 Alarm burst scheduled: \(Self.burstCount) calendar notifications (every \(Int(Self.burstIntervalSec))s)")
     }
 
+    /// burst 노티 cancel + 알림센터 정리. 돌 깨기 성공 시 호출.
+    /// `appTerminationWarning` 등 다른 노티는 보존됨 (식별자 prefix로 정확히 분리).
     func cancelAlarmBurst() {
-        let ids = (0..<Self.burstCount).map { "\(Self.burstIdentifierPrefix)\($0)" }
+        let ids = (0..<Self.burstCount).map { "\(Self.burstPrefix)\($0)" }
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ids)
         center.removeDeliveredNotifications(withIdentifiers: ids)
-        lastBurstScheduleTime = nil
-        print("🗑️ Alarm burst cancelled")
+        print("🗑️ Alarm burst cancelled (\(ids.count))")
     }
 
-    /// 앱이 살아있는 동안 burst를 계속 뒤로 밀어서 발사 방지 (Dead Man's Switch)
-    private func refreshBurstIfNeeded() {
-        guard isAlarmMode else { return }
-        // 5초마다 burst 재예약
-        if let last = lastBurstScheduleTime, Date().timeIntervalSince(last) < 5 { return }
-        scheduleAlarmBurst()
+    /// 앱 재진입 시 알람 모드 비활성인데 burst 노티가 살아있는 좀비 상태 정리.
+    /// repeats:true는 명시적 cancel 전까지 영원히 발동되므로 안전장치 필수.
+    func cleanupZombieBurstIfNotAlarming() {
+        guard !isAlarmMode else { return }
+        cancelAlarmBurst()
     }
 
     // MARK: - Volume Restoration Timer
@@ -375,11 +384,9 @@ class BackgroundAudioPlayer: ObservableObject {
         if !isAlarmMode {
             scheduleTerminationWarning()
         } else {
-            // 알람 모드일 때는 경고 노티 취소
+            // 알람 모드일 때는 경고 노티 취소 (burst는 시계 기반 1회 등록이라 재예약 불필요)
             UNUserNotificationCenter.current()
                 .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
-            // burst 노티를 계속 뒤로 밀어서 앱 살아있는 동안은 발사 안 되게
-            refreshBurstIfNeeded()
         }
 
         let now = Date()
