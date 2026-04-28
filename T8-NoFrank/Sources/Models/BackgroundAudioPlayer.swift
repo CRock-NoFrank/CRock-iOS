@@ -124,6 +124,12 @@ class BackgroundAudioPlayer: ObservableObject {
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
 
+        // 이전 사이클의 잔존 burst 노티 정리.
+        // UNCalendar(repeats:true) burst는 명시 cancel 전까지 펜딩 풀에 영구 잔존하므로,
+        // 직전 알람 fire 후 강제 종료된 경우 좀비 30개가 weeklyBurst와 합쳐져 64개 한도를
+        // 초과해 termination warning 등록이 거부되는 문제를 사전 차단.
+        cancelAlarmBurst()
+
         playSilentSound()
 
         // 1초마다 알람 시간 체크
