@@ -2,3 +2,6 @@
 "alarm_pm" = "오후";
 
 "widget_no_alarm" = "없음";
+"widget_alarm_setup_prompt" = "스위치를 눌러\n알람을 설정해주세요";
+"widget_alarm_on_message" = "알람이 울려요";
+"widget_alarm_remaining_format" = "%d시간 %d분 뒤에\n알람이 울려요";

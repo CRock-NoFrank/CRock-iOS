@@ -47,7 +47,7 @@ private enum WidgetStore {
                 let timeText = String(format: "%02d:%02d", displayHour, m)
                 return (enabled, ampm, timeText)
             } else {
-                return (enabled, "", NSLocalizedString("widget_no_alarm", comment: "없음"))
+                return (enabled, NSLocalizedString("alarm_am", comment: "오전"), "07:00")
             }
         }
     }
@@ -126,6 +126,8 @@ struct CRockWidgetEntryView : View {
                     }
                 }
             }
+        case .systemMedium:
+            MediumAlarmWidgetView(entry: entry)
         case .systemSmall:
             SmallAlarmWidgetView(entry: entry)
         default:
@@ -171,8 +173,137 @@ private struct SmallAlarmWidgetView: View {
         }
     }
 }
+
+private struct MediumAlarmWidgetView: View {
+    let entry: SimpleEntry
+
+    var body: some View {
+        ZStack {
+            Image("CRockWidgetBigBackground")
+                .resizable()
+                .scaledToFill()
+
+            HStack {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(statusText)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color.black.opacity(0.62))
+                        .lineLimit(2)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 12)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(entry.amPm)
+                            .font(.system(size: 20, weight: .bold))
+
+                        Text(entry.timeText)
+                            .font(.system(size: 34, weight: .heavy, design: .rounded))
+                    }
+                    .foregroundStyle(entry.isEnabled ? Color(red: 69 / 255, green: 69 / 255, blue: 69 / 255) : Color(red: 117 / 255, green: 117 / 255, blue: 117 / 255))
+                    .minimumScaleFactor(0.75)
+                    .lineLimit(1)
+                    .padding(.bottom, 2)
+
+                    Button(intent: ToggleAlarmIntent()) {
+                        WidgetToggle(
+                            isOn: entry.isEnabled,
+                            size: .init(
+                                trackWidth: 82,
+                                trackHeight: 36,
+                                thumbWidth: 50,
+                                thumbHeight: 30,
+                                inset: 3
+                            )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(entry.isEnabled ? "CRockAlarmOn" : "CRockAlarmOff")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 121)
+                    .padding(.trailing, 15)
+            }
+            .padding(.all, 18)
+        }
+        .clipped()
+    }
+
+    private var statusText: String {
+        if entry.isEnabled {
+            return alarmRemainingText(from: entry.date)
+        } else {
+            return NSLocalizedString("widget_alarm_setup_prompt", comment: "스위치를 눌러 알람을 설정해주세요")
+        }
+    }
+
+    private func alarmRemainingText(from date: Date) -> String {
+        let calendar = Calendar.current
+        let hour = hour24(from: entry.amPm, timeText: entry.timeText)
+        let minute = Int(entry.timeText.split(separator: ":").last ?? "0") ?? 0
+
+        var components = calendar.dateComponents([.year, .month, .day], from: date)
+        components.hour = hour
+        components.minute = minute
+
+        guard var alarmDate = calendar.date(from: components) else {
+            return NSLocalizedString("widget_alarm_on_message", comment: "알람이 울려요")
+        }
+
+        if alarmDate <= date {
+            alarmDate = calendar.date(byAdding: .day, value: 1, to: alarmDate) ?? alarmDate
+        }
+
+        let diff = calendar.dateComponents([.hour, .minute], from: date, to: alarmDate)
+        return String(
+            format: NSLocalizedString("widget_alarm_remaining_format", comment: "%d시간 %d분 뒤에 알람이 울려요"),
+            diff.hour ?? 0,
+            diff.minute ?? 0
+        )
+    }
+
+    private func hour24(from amPm: String, timeText: String) -> Int {
+        let hour12 = Int(timeText.split(separator: ":").first ?? "7") ?? 7
+        let isPM = amPm == NSLocalizedString("alarm_pm", comment: "오후")
+
+        if isPM {
+            return hour12 == 12 ? 12 : hour12 + 12
+        } else {
+            return hour12 == 12 ? 0 : hour12
+        }
+    }
+}
+
+private struct WidgetToggle: View {
+    struct Size {
+        let trackWidth: CGFloat
+        let trackHeight: CGFloat
+        let thumbWidth: CGFloat
+        let thumbHeight: CGFloat
+        let inset: CGFloat
+    }
+
+    let isOn: Bool
+    let size: Size
+
+    var body: some View {
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Capsule()
+                .fill(isOn ? Color.black.opacity(0.62) : Color.gray.opacity(0.72))
+
+            Capsule()
+                .fill(Color.white)
+                .frame(width: size.thumbWidth, height: size.thumbHeight)
+                .padding(size.inset)
+        }
+        .frame(width: size.trackWidth, height: size.trackHeight)
+    }
+}
+
 struct CRockWidget: Widget {
-    private let supportedFamilies: [WidgetFamily] = [.accessoryCircular]
     private let supportedFamilies: [WidgetFamily] = [.accessoryCircular, .systemSmall, .systemMedium]
     
     let kind: String = "CRockWidget"
@@ -206,6 +337,13 @@ extension ConfigurationAppIntent {
 } timeline: {
     SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "", timeText: "07:00")
 }
+
+#Preview(as: .systemMedium) {
+    CRockWidget()
+} timeline: {
+    SimpleEntry(date: .now, configuration: .smiley, isEnabled: true, amPm: "오전", timeText: "07:00")
+}
+
 #Preview(as: .systemSmall) {
     CRockWidget()
 } timeline: {
