@@ -5,6 +5,7 @@
 //  Created by 나현흠 on 8/8/25.
 //
 
+import AVFoundation
 import SwiftUI
 
 struct AlarmSettingView: View {
@@ -19,6 +20,8 @@ struct AlarmSettingView: View {
     @State private var time: Date
     @State private var days: [DayItem]
     @State private var volume: Double
+    @State private var previewPlayer: AVAudioPlayer?
+    @State private var previewStopTask: Task<Void, Never>?
     private let onSave: (Date, [DayItem], Double) -> Void
     @Environment(\.dismiss) var dismiss
 
@@ -91,9 +94,12 @@ struct AlarmSettingView: View {
                         }
                         .padding(.horizontal, 30)
 
-                        Slider(value: $volume, in: 0.0...1.0)
+                        Slider(value: $volume, in: 0.0...1.0, step: 0.1)
                             .accentColor(Color(hex: "#BE5F1B"))
                             .padding(.horizontal, 30)
+                            .onChange(of: volume) { newValue in
+                                playVolumePreview(newValue)
+                            }
                     }
                 }
             }
@@ -163,6 +169,34 @@ struct AlarmSettingView: View {
                     .disabled(!hasSelectedDays)
                 }
             }
+        }
+        .onDisappear {
+            previewStopTask?.cancel()
+            previewPlayer?.stop()
+        }
+    }
+
+    private func playVolumePreview(_ volume: Double) {
+        previewStopTask?.cancel()
+        previewPlayer?.stop()
+        guard let url = Bundle.main.url(
+            forResource: "NotiSound28sec",
+            withExtension: "caf"
+        ) else { return }
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.volume = Float(volume)
+            player.numberOfLoops = 0
+            player.prepareToPlay()
+            player.play()
+            previewPlayer = player
+            previewStopTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(1500))
+                guard !Task.isCancelled else { return }
+                player.stop()
+            }
+        } catch {
+            print("볼륨 미리듣기 재생 실패: \(error)")
         }
     }
 
