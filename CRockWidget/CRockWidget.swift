@@ -67,10 +67,9 @@ struct Provider: AppIntentTimelineProvider {
     func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
         var entries: [SimpleEntry] = []
 
-        // Generate a timeline consisting of five entries an hour apart, starting from the current date.
         let currentDate = Date()
-        for hourOffset in 0 ..< 5 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
+        for secondOffset in stride(from: 0, through: 120, by: 3) {
+            let entryDate = Calendar.current.date(byAdding: .second, value: secondOffset, to: currentDate)!
             let loaded = WidgetStore.load()
             let entry = SimpleEntry(date: entryDate, configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText)
             entries.append(entry)
@@ -127,6 +126,8 @@ struct CRockWidgetEntryView : View {
                     }
                 }
             }
+        case .systemSmall:
+            SmallAlarmWidgetView(entry: entry)
         default:
             VStack {
                 Text(entry.date, style: .time)
@@ -136,8 +137,43 @@ struct CRockWidgetEntryView : View {
     }
 }
 
+private struct SmallAlarmWidgetView: View {
+    let entry: SimpleEntry
+
+    var body: some View {
+        ZStack {
+            Image("CRockWidgetBigBackground")
+                .resizable()
+                .scaledToFill()
+
+            Image(faceImageName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 132, height: 84)
+                .padding(.top, 22)
+                .padding(.bottom, 57)
+                .padding(.horizontal, 16)
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.35), value: faceImageName)
+        }
+        .clipped()
+    }
+
+    private var faceImageName: String {
+        let phase = (Int(entry.date.timeIntervalSince1970) / 3) % 4
+        switch phase {
+        case 1:
+            return "CRockFace2"
+        case 3:
+            return "CRockFace3"
+        default:
+            return "CRockFace1"
+        }
+    }
+}
 struct CRockWidget: Widget {
     private let supportedFamilies: [WidgetFamily] = [.accessoryCircular]
+    private let supportedFamilies: [WidgetFamily] = [.accessoryCircular, .systemSmall, .systemMedium]
     
     let kind: String = "CRockWidget"
 
@@ -147,6 +183,7 @@ struct CRockWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .supportedFamilies(supportedFamilies)
+        .contentMarginsDisabled()
     }
 }
 
@@ -168,4 +205,9 @@ extension ConfigurationAppIntent {
     CRockWidget()
 } timeline: {
     SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "", timeText: "07:00")
+}
+#Preview(as: .systemSmall) {
+    CRockWidget()
+} timeline: {
+    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "오전", timeText: "07:00")
 }
