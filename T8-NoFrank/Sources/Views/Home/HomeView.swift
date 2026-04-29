@@ -20,7 +20,12 @@ struct HomeView: View {
     @State private var isAnimating: Bool = false
     @State private var isModal: Bool = false
     @State private var Time: String = "00:00"
-    @State private var alarmTime = Date()
+    @State private var alarmTime: Date = {
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = 9
+        comps.minute = 41
+        return Calendar.current.date(from: comps) ?? Date()
+    }()
     @State private var shouldNavigate: Bool = false
     @State private var targetScreen: String = ""
     @State private var alarmVolume: Double = 1.0
