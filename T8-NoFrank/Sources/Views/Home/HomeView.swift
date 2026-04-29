@@ -124,9 +124,16 @@ struct HomeView: View {
             NavigationStack {
                 AlarmSettingView(
                     isAlarmEnabled: isEnabled,
-                    time: $alarmTime,
-                    days: $alarmDays,
-                    volume: $alarmVolume
+                    initialTime: alarmTime,
+                    initialDays: alarmDays,
+                    initialVolume: alarmVolume,
+                    onSave: { newTime, newDays, newVolume in
+                        alarmTime = newTime
+                        alarmDays = newDays
+                        alarmVolume = newVolume
+                        persistAlarm()
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
                 )
                 .navigationTitle(NSLocalizedString("alarm_edit_title", comment: "알람 편집"))
                 .navigationBarTitleDisplayMode(.inline)
@@ -136,12 +143,6 @@ struct HomeView: View {
             }
             .presentationDetents([.fraction(0.7)])
             .presentationDragIndicator(.visible)
-        }
-        .onChange(of: isModal) { newValue in
-            if newValue == false {
-                persistAlarm()
-            }
-            WidgetCenter.shared.reloadAllTimelines()
         }
         .onChange(of: isEnabled) { newValue in
             UserDefaults(suiteName: AppConstants.appGroupID)!.set(

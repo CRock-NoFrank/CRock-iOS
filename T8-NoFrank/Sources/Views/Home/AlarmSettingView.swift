@@ -16,10 +16,25 @@ struct AlarmSettingView: View {
         var labelKey: String { weekday.labelKey }
     }
     let isAlarmEnabled: Bool
-    @Binding var time: Date
-    @Binding var days: [DayItem]
-    @Binding var volume: Double
+    @State private var time: Date
+    @State private var days: [DayItem]
+    @State private var volume: Double
+    private let onSave: (Date, [DayItem], Double) -> Void
     @Environment(\.dismiss) var dismiss
+
+    init(
+        isAlarmEnabled: Bool,
+        initialTime: Date,
+        initialDays: [DayItem],
+        initialVolume: Double,
+        onSave: @escaping (Date, [DayItem], Double) -> Void
+    ) {
+        self.isAlarmEnabled = isAlarmEnabled
+        self.onSave = onSave
+        _time = State(initialValue: initialTime)
+        _days = State(initialValue: initialDays)
+        _volume = State(initialValue: initialVolume)
+    }
     
     private var hasSelectedDays: Bool {
         days.contains { $0.isSelected }
@@ -114,6 +129,7 @@ struct AlarmSettingView: View {
                     Button(
                         action: {
                             saveAlarmSettings()
+                            onSave(time, days, volume)
                             dismiss()
                         },
                         label: {
@@ -132,6 +148,7 @@ struct AlarmSettingView: View {
                     Button(
                         action: {
                             saveAlarmSettings()
+                            onSave(time, days, volume)
                             dismiss()
                         },
                         label: {
