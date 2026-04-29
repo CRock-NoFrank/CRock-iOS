@@ -155,9 +155,8 @@ struct BlowAwayStoneView: View {
                 if granted {
                     blowDetector.start()
                 }
+                resetAutoNavigateTimer()
             }
-
-            resetAutoNavigateTimer()
         }
     }
 
