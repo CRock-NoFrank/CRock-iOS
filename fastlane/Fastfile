@@ -25,9 +25,10 @@ platform :ios do
       readonly: true
     )
 
-    increment_build_number(
+    new_build_number = increment_build_number(
       xcodeproj: "T8-NoFrank.xcodeproj"
     )
+    set_info_plist_value(path: "CRockWidget/Info.plist", key: "CFBundleVersion", value: new_build_number.to_s)
 
     build_app(
       scheme: "T8-NoFrank",
