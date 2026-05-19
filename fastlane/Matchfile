@@ -11,8 +11,6 @@ generate_apple_certs(false)
 skip_certificate_matching(true)
 include_all_certificates(false)
 
-type('development')
-
 username(ENV.fetch('APPLE_ID'))
 team_id(ENV.fetch('APPLE_TEAM_ID'))
 
