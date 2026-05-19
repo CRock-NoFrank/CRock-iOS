@@ -12,6 +12,7 @@ jobs:
     env:
       CI: true
       MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
       MATCH_GIT_BRANCH: ${{ secrets.MATCH_GIT_BRANCH }}
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       APPLE_ID: ${{ secrets.APPLE_ID }}
