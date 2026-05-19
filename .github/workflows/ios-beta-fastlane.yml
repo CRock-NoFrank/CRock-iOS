@@ -2,6 +2,8 @@ name: iOS Beta (Fastlane)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [chore/#121, develop]
 
 jobs:
   beta:
