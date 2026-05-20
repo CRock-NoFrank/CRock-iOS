@@ -9,7 +9,6 @@ import SwiftUI
 
 struct BlowAwayStoneView: View {
     @State private var blowDetector = BlowDetector()
-    @State private var autoNavigateTask: Task<Void, Never>?
     @State private var blowAwayTask: Task<Void, Never>?
 
     @State private var triggerActivated = false
@@ -123,12 +122,10 @@ struct BlowAwayStoneView: View {
         .onChange(of: blowDetector.blowStage) { _, stage in
             switch stage {
             case 1:
-                resetAutoNavigateTimer()
                 withAnimation(.easeOut(duration: 1.5)) {
                     a2Offset = -200
                 }
             case 2:
-                resetAutoNavigateTimer()
                 withAnimation(.easeOut(duration: 1.5)) {
                     b2Offset = -300
                 }
@@ -140,7 +137,6 @@ struct BlowAwayStoneView: View {
         }
         .onDisappear {
             blowDetector.stop()
-            autoNavigateTask?.cancel()
             blowAwayTask?.cancel()
         }
         .onAppear {
@@ -155,19 +151,6 @@ struct BlowAwayStoneView: View {
                 if granted {
                     blowDetector.start()
                 }
-                resetAutoNavigateTimer()
-            }
-        }
-    }
-
-    private func resetAutoNavigateTimer() {
-        autoNavigateTask?.cancel()
-        autoNavigateTask = Task {
-            try? await Task.sleep(for: .seconds(10))
-            if !Task.isCancelled {
-                await MainActor.run {
-                    triggerBlowAwayAndNavigate()
-                }
             }
         }
     }
@@ -175,7 +158,6 @@ struct BlowAwayStoneView: View {
     private func triggerBlowAwayAndNavigate() {
         guard blowAwayTask == nil else { return }
 
-        autoNavigateTask?.cancel()
         blowDetector.stop()
 
         blowAwayTask = Task { @MainActor in
