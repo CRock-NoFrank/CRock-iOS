@@ -17,6 +17,7 @@ struct BlowAwayStoneView: View {
     @State private var newStoneOpacity: Double = 0
     @State private var a2Offset: CGFloat = 0
     @State private var b2Offset: CGFloat = 0
+    @State private var hintOpacity: Double = 0.4
 
     private var weekdayPrefix: String? {
         let raw = Calendar.current.component(.weekday, from: Date())
@@ -61,6 +62,18 @@ struct BlowAwayStoneView: View {
                         .padding(.top, 139)
                 }
                 Spacer()
+            }
+
+            VStack {
+                Spacer()
+                if !triggerActivated {
+                    Text("빈 곳을 탭하면\n메인 화면으로 돌아가요")
+                        .font(.subtitleMedium)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .opacity(hintOpacity)
+                        .padding(.bottom, 175)
+                }
             }
 
             ZStack {
@@ -146,7 +159,11 @@ struct BlowAwayStoneView: View {
             newStoneOpacity = 0
             a2Offset = 0
             b2Offset = 0
+            hintOpacity = 0.4
             blowAwayTask = nil
+            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                hintOpacity = 0.6
+            }
             NotificationService.requestMicrophonePermission { granted in
                 if granted {
                     blowDetector.start()
