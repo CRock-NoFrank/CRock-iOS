@@ -1,4 +1,4 @@
-name: iOS Beta (Fastlane)
+name: TestFlight Build
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     branches: [develop]
 
 jobs:
-  beta:
+  testflight:
     runs-on: macos-26
     timeout-minutes: 60
     env:
@@ -34,5 +34,5 @@ jobs:
         with:
           bundler-cache: true
 
-      - name: Run fastlane beta
+      - name: Upload TestFlight build
         run: bundle exec fastlane ios beta
