@@ -117,6 +117,12 @@ struct HomeView: View {
         .onAppear {
             loadAlarm()
             NotificationService.requestAuthorization()
+            // iOS 26+: AlarmKit 권한 요청 (시스템 알람 등록 위해 필수)
+            if #available(iOS 26.0, *) {
+                Task {
+                    _ = await AlarmKitManager.shared.requestAuthorization()
+                }
+            }
         }
         .sheet(isPresented: $isModal) {
             NavigationStack {

@@ -9,6 +9,7 @@ import AVFoundation
 import Foundation
 import UserNotifications
 import MediaPlayer
+import UIKit
 
 class BackgroundAudioPlayer: ObservableObject {
     static let shared = BackgroundAudioPlayer()
@@ -23,10 +24,23 @@ class BackgroundAudioPlayer: ObservableObject {
     private var originalSystemVolume: Float = 0.0
     private var volumeRestorationTimer: Timer?
 
+    // iOS 13+에서는 MPVolumeView가 view hierarchy에 attach되어 있어야 system volume 변경이 먹힘.
+    // 화면 밖 1x1 hidden view로 key window에 한 번 부착해 재사용.
+    private lazy var persistentVolumeView: MPVolumeView = {
+        let v = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
+        v.isHidden = false
+        v.alpha = 0.001
+        return v
+    }()
+    private var volumeViewAttached = false
+
     private static let appGroupID = "group.CRockWidget"
     private static let isAlarmRingingKey = "isAlarmRinging"
     private static let alarmRingingTimestampKey = "alarmRingingTimestamp"
     private static let originalVolumeKey = "originalSystemVolume"
+    private static let originalRingerVolumeKey = "originalRingerVolume"
+
+    private var originalRingerVolume: Float = 1.0
     // Burst 노티 — UNCalendarNotificationTrigger로 매 분 0/2/4/.../58초마다 발동.
     // 시계 기반이라 알람 fire/강제 종료 시점 무관하게 ≤2초 안에 첫 노티 + 영원히 균일 반복.
     private static let burstCount = 30
@@ -41,14 +55,48 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - System Volume Control
+    /// 시스템 볼륨 강제 설정. iOS 11.4+에서 작동하는 검증된 방식:
+    /// 1) MPVolumeView를 view hierarchy에 attach (key window의 hidden subview)
+    /// 2) 내부 MPVolumeSlider를 NSStringFromClass로 정확히 식별
+    /// 3) `.value =` 대신 `setValue(_:animated:)` 사용 (이게 진짜 시스템 볼륨을 바꿈)
     private func setSystemVolume(_ volume: Float) {
-        let volumeView = MPVolumeView()
-        if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                slider.value = volume
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.attachVolumeViewIfNeeded()
+            guard let slider = self.findMPVolumeSlider(in: self.persistentVolumeView) else {
+                print("⚠️ MPVolumeSlider not found in persistent view")
+                return
+            }
+            slider.setValue(volume, animated: false)
+        }
+    }
+
+    /// 첫 호출 시 key window에 한 번만 attach.
+    private func attachVolumeViewIfNeeded() {
+        guard !volumeViewAttached else { return }
+        guard let window = UIApplication.shared.connectedScenes
+            .compactMap({ ($0 as? UIWindowScene)?.keyWindow })
+            .first ?? UIApplication.shared.connectedScenes
+            .compactMap({ ($0 as? UIWindowScene)?.windows.first })
+            .first else { return }
+        window.addSubview(persistentVolumeView)
+        volumeViewAttached = true
+        print("✅ MPVolumeView attached to key window")
+    }
+
+    /// MPVolumeView 내부 hierarchy를 재귀 탐색해 MPVolumeSlider (private subclass of UISlider) 찾음.
+    /// `is UISlider` 캐스팅으론 못 잡힘 — 클래스명으로 정확히 식별해야 함.
+    private func findMPVolumeSlider(in view: UIView) -> UISlider? {
+        for sub in view.subviews {
+            if NSStringFromClass(type(of: sub)) == "MPVolumeSlider",
+               let slider = sub as? UISlider {
+                return slider
+            }
+            if let nested = findMPVolumeSlider(in: sub) {
+                return nested
             }
         }
-        print("📢 System volume set to: \(Int(volume * 100))%")
+        return nil
     }
 
     private func getCurrentSystemVolume() -> Float {
@@ -140,6 +188,17 @@ class BackgroundAudioPlayer: ObservableObject {
 
         isPlaying = true
         print("🔇 Silent sound started. Next alarm: \(alarmTime?.formatted() ?? "nil")")
+
+        // iOS 26+: AlarmKit weekly alarm 등록. 시스템이 자체 ringing 처리하므로 burst 노티 불필요.
+        // Silent audio loop은 유지 — 알람 시간에 시스템 볼륨 오버라이드 위해 앱을 살아있게 함.
+        if #available(iOS 26.0, *) {
+            Task {
+                await AlarmKitManager.shared.scheduleMainAlarm(
+                    hour: hour, minute: minute, weekdays: weekdays
+                )
+                AlarmKitManager.shared.startObserving()
+            }
+        }
     }
 
     // MARK: - Play Silent Sound
@@ -180,28 +239,65 @@ class BackgroundAudioPlayer: ObservableObject {
         )
         print("💾 Original system volume: \(Int(originalSystemVolume * 100))%")
 
-        // 시스템 볼륨을 설정한 값으로 변경
-        setSystemVolume(targetVolume)
-
-        // audioPlayer가 없으면 (강제 종료 후 재실행) 새로 생성
-        if audioPlayer == nil {
-            guard let soundURL = Bundle.main.url(forResource: "NotiSound28sec", withExtension: "caf") else {
-                print("❌ Sound file not found")
-                return
+        // iOS 26+: AlarmKit은 Ringtone 채널로 재생 → 시스템 벨소리 볼륨을 따름.
+        // RingerVolumeController (private AVSystemController API)로 Ringtone 볼륨을 직접 set해서
+        // AlarmKit 사운드가 유저 설정 볼륨으로 울리게 함. (alerting은 stop하지 않음)
+        if #available(iOS 26.0, *) {
+            if let currentRinger = RingerVolumeController.shared.getVolume(for: .ringtone) {
+                originalRingerVolume = currentRinger
+                UserDefaults(suiteName: Self.appGroupID)?
+                    .set(Double(currentRinger), forKey: Self.originalRingerVolumeKey)
+                print("💾 Original Ringtone volume: \(Int(currentRinger * 100))%")
             }
-            do {
-                audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
-                audioPlayer?.numberOfLoops = -1
-                audioPlayer?.prepareToPlay()
-                audioPlayer?.play()
-            } catch {
-                print("❌ Failed to create audio player: \(error)")
-                return
-            }
+            let ok = RingerVolumeController.shared.setVolume(targetVolume, for: .ringtone)
+            print("📢 Ringtone volume set to \(Int(targetVolume * 100))% — success=\(ok)")
         }
 
-        // 앱 내부 볼륨은 최대로 설정
-        audioPlayer?.volume = 1.0
+        // AlarmKit이 audio session 우선권을 빼앗았을 가능성 → 명시적으로 .playback (no mix) 카테고리로
+        // 재설정 + reactivate해서 우리 in-app audio가 미디어 채널로 큰 소리 낼 수 있게 함.
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setActive(true, options: [.notifyOthersOnDeactivation])
+            print("🔊 Audio session reactivated for alarm playback")
+        } catch {
+            print("❌ Failed to reactivate audio session: \(error)")
+        }
+
+        // 시스템 볼륨을 설정한 값으로 즉시 + 0.05초 / 0.1초 / 0.2초 후 반복 set —
+        // MPVolumeSlider attach 직후 setValue가 한 번엔 안 먹는 케이스 대비.
+        setSystemVolume(targetVolume)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.setSystemVolume(targetVolume)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.setSystemVolume(targetVolume)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.setSystemVolume(targetVolume)
+        }
+
+        // audioPlayer를 무조건 새로 생성 — silent loop 상태에서 volume만 바꾸는 방식이
+        // iOS 26에서 안 들리는 케이스 대비. 기존 player 정지 후 fresh instance로 교체.
+        audioPlayer?.stop()
+        audioPlayer = nil
+
+        guard let soundURL = Bundle.main.url(forResource: "NotiSound28sec", withExtension: "caf") else {
+            print("❌ Sound file not found")
+            return
+        }
+        do {
+            let player = try AVAudioPlayer(contentsOf: soundURL)
+            player.numberOfLoops = -1
+            player.volume = 1.0
+            player.prepareToPlay()
+            player.play()
+            audioPlayer = player
+            print("🔔 Fresh AVAudioPlayer created and playing — volume=\(player.volume), isPlaying=\(player.isPlaying)")
+        } catch {
+            print("❌ Failed to create audio player: \(error)")
+            return
+        }
         isAlarmMode = true
 
         // 알람 상태 영속화 (강제 종료 후 복원용)
@@ -210,11 +306,15 @@ class BackgroundAudioPlayer: ObservableObject {
         // 2초마다 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
         startVolumeRestorationTimer(targetVolume: targetVolume)
 
-        // 노티 1개만 전송
-        sendLocalNotification()
-
-        // 강제 종료 대비 burst 노티 예약 (UNCalendar 시계 기반, 매 2초 균일 무한 반복)
-        scheduleAlarmBurst()
+        // iOS 26+: AlarmKit이 시스템 알림/burst 역할을 대체. 로컬 노티 + UNCalendar burst 모두 생략.
+        // AlarmKit alerting은 계속 ring (Ringtone 채널 볼륨은 위에서 유저 설정값으로 강제 set됨).
+        // iOS 26 미만: 기존대로 로컬 노티 1개 + burst 노티 30개 예약.
+        if #available(iOS 26.0, *) {
+            AlarmKitManager.markAlarmFired()
+        } else {
+            sendLocalNotification()
+            scheduleAlarmBurst()
+        }
 
         print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
     }
@@ -256,6 +356,7 @@ class BackgroundAudioPlayer: ObservableObject {
         } else {
             ud?.removeObject(forKey: Self.alarmRingingTimestampKey)
             ud?.removeObject(forKey: Self.originalVolumeKey)
+            ud?.removeObject(forKey: Self.originalRingerVolumeKey)
         }
     }
 
@@ -277,15 +378,24 @@ class BackgroundAudioPlayer: ObservableObject {
         ud?.set(false, forKey: isAlarmRingingKey)
         ud?.removeObject(forKey: alarmRingingTimestampKey)
         ud?.removeObject(forKey: originalVolumeKey)
+        ud?.removeObject(forKey: originalRingerVolumeKey)
     }
 
-    /// 영속화된 원래 시스템 볼륨 복원
+    /// 영속화된 원래 시스템 볼륨 복원 (미디어 + Ringtone 둘 다).
+    /// 강제 종료 후 재실행 시 알람 끄면 원래 볼륨으로 돌려놓기 위함.
     func restoreOriginalVolumeFromPersistence() {
         if let saved = UserDefaults(suiteName: Self.appGroupID)?.double(forKey: Self.originalVolumeKey),
            saved > 0 {
             originalSystemVolume = Float(saved)
         } else {
             originalSystemVolume = getCurrentSystemVolume()
+        }
+        if let savedRinger = UserDefaults(suiteName: Self.appGroupID)?.double(forKey: Self.originalRingerVolumeKey),
+           savedRinger > 0 {
+            originalRingerVolume = Float(savedRinger)
+        } else if #available(iOS 26.0, *),
+                  let currentRinger = RingerVolumeController.shared.getVolume(for: .ringtone) {
+            originalRingerVolume = currentRinger
         }
     }
 
@@ -345,14 +455,15 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Volume Restoration Timer
+    /// 0.2초 간격으로 무조건 미디어 + Ringtone 볼륨 둘 다 갈김. 현재 볼륨 확인 안 함.
+    /// AlarmKit / 시스템이 우리 설정을 덮어쓰는 케이스 대비.
     private func startVolumeRestorationTimer(targetVolume: Float) {
         volumeRestorationTimer?.invalidate()
-        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
             guard let self = self, self.isAlarmMode else { return }
-            let currentVolume = self.getCurrentSystemVolume()
-            if currentVolume < targetVolume {
-                self.setSystemVolume(targetVolume)
-                print("🔊 Volume restored: \(Int(currentVolume * 100))% → \(Int(targetVolume * 100))%")
+            self.setSystemVolume(targetVolume)
+            if #available(iOS 26.0, *) {
+                _ = RingerVolumeController.shared.setVolume(targetVolume, for: .ringtone)
             }
         }
     }
@@ -364,6 +475,11 @@ class BackgroundAudioPlayer: ObservableObject {
 
     // MARK: - App Termination Warning (Dead Man's Switch)
     private func scheduleTerminationWarning() {
+        // iOS 26+ AlarmKit이 앱 강제 종료 후에도 시스템 레벨에서 알람을 울리므로 경고 불필요.
+        if #available(iOS 26.0, *) {
+            return
+        }
+
         let center = UNUserNotificationCenter.current()
         // 이전 경고 노티 취소 후 1초 뒤로 재예약
         center.removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
@@ -454,17 +570,35 @@ class BackgroundAudioPlayer: ObservableObject {
         // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 
-        // 시스템 볼륨을 원래대로 복원
+        // 시스템 미디어 볼륨 + Ringtone 볼륨 모두 원래대로 복원
         setSystemVolume(originalSystemVolume)
+        if #available(iOS 26.0, *) {
+            _ = RingerVolumeController.shared.setVolume(originalRingerVolume, for: .ringtone)
+            print("🔄 Ringtone volume restored to: \(Int(originalRingerVolume * 100))%")
+        }
         print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
 
-        // 알람 소리를 무음으로 전환
-        audioPlayer?.volume = 0.0
+        // 알람용 fresh AVAudioPlayer 정지 후 silent loop을 재구성 — audio session도
+        // mixWithOthers 옵션으로 다시 setup해 다른 앱 오디오와 공존 가능 상태로 복귀.
+        audioPlayer?.stop()
+        audioPlayer = nil
+        setupAudioSession()
+        playSilentSound()
         isAlarmMode = false
 
         // 영속화 상태 초기화 + burst 취소
         persistAlarmRinging(false)
         cancelAlarmBurst()
+
+        // iOS 26+: alerting 중인 AlarmKit 알람 + backup 알람 모두 정지.
+        // weekly recurrence는 다음 주에 자동 재예약되므로 main alarm 자체 cancel은 하지 않음.
+        if #available(iOS 26.0, *) {
+            Task {
+                await AlarmKitManager.shared.stopAlertingAlarms()
+            }
+            AlarmKitManager.shared.cancelBackupAlarm()
+            AlarmKitManager.clearAlarmFiredMark()
+        }
 
         // 다음 알람 시간 계산
         if let alarmTime = alarmTime {
@@ -480,10 +614,14 @@ class BackgroundAudioPlayer: ObservableObject {
         // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 
-        // 알람 모드였다면 시스템 볼륨 복원
+        // 알람 모드였다면 시스템 미디어 + Ringtone 볼륨 모두 복원
         if isAlarmMode {
             setSystemVolume(originalSystemVolume)
             print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
+            if #available(iOS 26.0, *) {
+                _ = RingerVolumeController.shared.setVolume(originalRingerVolume, for: .ringtone)
+                print("🔄 Ringtone volume restored to: \(Int(originalRingerVolume * 100))%")
+            }
         }
 
         audioPlayer?.stop()
@@ -501,6 +639,13 @@ class BackgroundAudioPlayer: ObservableObject {
         // 알람 끄면 종료 경고 노티도 취소
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+
+        // iOS 26+: AlarmKit 알람 전체 취소 (유저가 알람 자체를 off 했을 때만 호출되므로 main도 cancel)
+        if #available(iOS 26.0, *) {
+            AlarmKitManager.shared.cancelAllAlarms()
+            AlarmKitManager.shared.stopObserving()
+            AlarmKitManager.clearAlarmFiredMark()
+        }
 
         print("🛑 Background audio player stopped")
     }
