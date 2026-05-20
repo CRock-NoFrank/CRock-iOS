@@ -15,25 +15,34 @@ platform :ios do
     api_key = nil
     if ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"] && ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"] && ENV["APP_STORE_CONNECT_API_KEY_KEY"]
       api_key = app_store_connect_api_key(
-        key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"],
-        issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
-        key_content: ENV["APP_STORE_CONNECT_API_KEY_KEY"],
+        key_id: ENV["APP_STORE_CONNECT_API_KEY_KEY_ID"].strip,
+        issuer_id: ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"].strip,
+        key_content: ENV["APP_STORE_CONNECT_API_KEY_KEY"].gsub("\\n", "\n").strip,
         is_key_content_base64: false
       )
     end
 
     match(
       type: "appstore",
-      readonly: false
+      readonly: true
     )
 
-    new_build_number = increment_build_number(
-      xcodeproj: "T8-NoFrank.xcodeproj"
-    )
+    ci_build_number = ENV["CI_RUN_NUMBER"].to_s.strip
+    new_build_number = if ci_build_number.empty?
+      increment_build_number(
+        xcodeproj: "T8-NoFrank.xcodeproj"
+      )
+    else
+      increment_build_number(
+        xcodeproj: "T8-NoFrank.xcodeproj",
+        build_number: ci_build_number
+      )
+    end
     set_info_plist_value(path: "CRockWidget/Info.plist", key: "CFBundleVersion", value: new_build_number.to_s)
 
     build_app(
       scheme: "T8-NoFrank",
+      configuration: "Release",
       export_method: "app-store"
     )
 

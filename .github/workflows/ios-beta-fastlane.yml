@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 60
     env:
       CI: true
+      CI_RUN_NUMBER: ${{ github.run_number }}
       MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
       MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
       MATCH_GIT_BRANCH: ${{ secrets.MATCH_GIT_BRANCH }}
