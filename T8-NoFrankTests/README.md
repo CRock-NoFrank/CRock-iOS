@@ -16,7 +16,7 @@
 
 - 한 번 확인에 **최소 1분 + 빌드 시간**
 - 강제 종료 케이스, 요일 경계 케이스 등은 매번 손으로 재현해야 함
-- "노티가 정확히 60개 잡혔나?", "64개 한도 안 넘었나?" 같은 건 **눈으로 셀 수도 없음**
+- "노티가 정확히 30개 잡혔나?", "64개 한도 안 넘었나?" 같은 건 **눈으로 셀 수도 없음**
 
 ### 도입 후
 ```
@@ -50,12 +50,16 @@
 ### 묶음 B — 노티 스케줄링 (`BackgroundAudioPlayerNotificationTests.swift`)
 "알람이 켜지고 꺼질 때 노티가 **언제·몇 개·어떤 ID**로 예약/제거되는가"를 검증합니다.
 
+> #112 이후 burst 설계: `UNCalendarNotificationTrigger`로 **매 분 0, 2, 4, …, 58초**에
+> 발동되는 노티 **30개**를 `repeats: true`로 등록 → 시계 기반 무한 반복.
+> (강제 종료 시점과 무관하게 ≤2초 안에 첫 노티 + 영원히 균일 반복)
+
 - `startSilentSound` → 이전 종료 경고 노티 정리되는가
 - `scheduleTerminationWarning` → 종료 경고 노티 1개만 등록되는가 (3초 트리거)
-- `scheduleAlarmBurst` → burst 노티 정확히 **60개**, ID `ALARM_BURST_0~59`
-- `scheduleAlarmBurst` → 간격이 **30초씩**(30, 60, …, 1800초) 증가하는가
-- `cancelAlarmBurst` → 60개 pending + delivered 모두 제거되는가
-- **회귀 방어**: burst 60 + 종료경고 1 = 61개 ≤ **iOS 펜딩 한도 64개**
+- `scheduleAlarmBurst` → burst 노티 정확히 **30개**, ID `ALARM_BURST_0~29`
+- `scheduleAlarmBurst` → `second` 컴포넌트가 **0,2,…,58** + 전부 `repeats: true` 인가
+- `cancelAlarmBurst` → 30개 pending + delivered 모두 제거되는가
+- **회귀 방어**: burst 30 + 종료경고 1 = 31개 ≤ **iOS 펜딩 한도 64개**
 
 ---
 
@@ -126,7 +130,7 @@ struct MyFeatureTests {
         sut.scheduleAlarmBurst()
 
         // 3) 검증 (#expect 조건이 true여야 통과)
-        #expect(spy.addedRequests(withPrefix: "ALARM_BURST_").count == 60)
+        #expect(spy.addedRequests(withPrefix: "ALARM_BURST_").count == 30)
     }
 }
 ```

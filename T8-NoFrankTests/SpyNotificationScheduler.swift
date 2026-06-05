@@ -43,8 +43,18 @@ final class SpyNotificationScheduler: NotificationScheduling {
         addedRequests.filter { $0.identifier.hasPrefix(prefix) }
     }
 
-    /// 특정 요청의 timeInterval 트리거 값 (없으면 nil)
+    /// 특정 요청의 UNTimeIntervalNotificationTrigger 값 (아니면 nil) — 종료 경고 노티 검증용
     static func timeInterval(of request: UNNotificationRequest) -> TimeInterval? {
         (request.trigger as? UNTimeIntervalNotificationTrigger)?.timeInterval
+    }
+
+    /// 특정 요청의 UNCalendarNotificationTrigger second 컴포넌트 (아니면 nil) — burst 노티 검증용
+    static func calendarSecond(of request: UNNotificationRequest) -> Int? {
+        (request.trigger as? UNCalendarNotificationTrigger)?.dateComponents.second
+    }
+
+    /// 특정 요청의 UNCalendarNotificationTrigger repeats 여부 (아니면 nil)
+    static func calendarRepeats(of request: UNNotificationRequest) -> Bool? {
+        (request.trigger as? UNCalendarNotificationTrigger)?.repeats
     }
 }

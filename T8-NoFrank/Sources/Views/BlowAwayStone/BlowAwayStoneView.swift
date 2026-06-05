@@ -151,9 +151,12 @@ struct BlowAwayStoneView: View {
             a2Offset = 0
             b2Offset = 0
             blowAwayTask = nil
-            blowDetector.start()
-
-            resetAutoNavigateTimer()
+            NotificationService.requestMicrophonePermission { granted in
+                if granted {
+                    blowDetector.start()
+                }
+                resetAutoNavigateTimer()
+            }
         }
     }
 
