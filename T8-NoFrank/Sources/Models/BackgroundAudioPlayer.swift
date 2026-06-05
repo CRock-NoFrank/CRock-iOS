@@ -32,9 +32,24 @@ class BackgroundAudioPlayer: ObservableObject {
     private static let burstIntervalSec: TimeInterval = 30
     private static let burstIdentifierPrefix = "ALARM_BURST_"
 
-    private init() {
-        setupAudioSession()
-        setupInterruptionObserver()
+    // MARK: - Dependencies (테스트에서 교체 가능)
+    /// 노티 예약/제거는 이 게이트만 통해서 한다. 운영은 SystemNotificationScheduler,
+    /// 테스트는 SpyNotificationScheduler를 주입.
+    private let scheduler: NotificationScheduling
+
+    /// 운영 빌드는 `.shared`만 사용. 테스트 빌드는 setupAudio=false로 오디오 세션 부작용 없이 생성한다.
+    /// - Parameters:
+    ///   - scheduler: 노티 스케줄링 의존성 (기본: 실제 UNUserNotificationCenter 호출)
+    ///   - setupAudio: AVAudioSession/인터럽트 옵저버 셋업 여부 (테스트는 false 권장)
+    init(
+        scheduler: NotificationScheduling = SystemNotificationScheduler(),
+        setupAudio: Bool = true
+    ) {
+        self.scheduler = scheduler
+        if setupAudio {
+            setupAudioSession()
+            setupInterruptionObserver()
+        }
     }
 
     // MARK: - System Volume Control
@@ -118,8 +133,7 @@ class BackgroundAudioPlayer: ObservableObject {
         updateNextAlarmTime(hour: hour, minute: minute)
 
         // 앱 재시작 시 이전 종료 경고 노티 즉시 취소
-        UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+        scheduler.removePending(identifiers: ["appTerminationWarning"])
 
         playSilentSound()
 
@@ -229,13 +243,7 @@ class BackgroundAudioPlayer: ObservableObject {
             trigger: trigger
         )
 
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Failed to send notification: \(error)")
-            } else {
-                print("📬 Notification sent successfully")
-            }
-        }
+        scheduler.add(request)
     }
 
     // MARK: - Alarm Ringing Persistence
@@ -282,9 +290,8 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - Alarm Burst Notifications (강제 종료 대비)
-    private func scheduleAlarmBurst() {
-        let center = UNUserNotificationCenter.current()
-
+    /// internal: 테스트에서 직접 호출해 노티 예약 패턴(64개 한도/간격/ID)을 검증한다.
+    func scheduleAlarmBurst() {
         // 기존 burst 취소
         cancelAlarmBurst()
 
@@ -306,7 +313,7 @@ class BackgroundAudioPlayer: ObservableObject {
                 content: content,
                 trigger: trigger
             )
-            center.add(request)
+            scheduler.add(request)
         }
         lastBurstScheduleTime = Date()
         print("📬 Alarm burst scheduled: \(Self.burstCount) notifications")
@@ -314,9 +321,8 @@ class BackgroundAudioPlayer: ObservableObject {
 
     func cancelAlarmBurst() {
         let ids = (0..<Self.burstCount).map { "\(Self.burstIdentifierPrefix)\($0)" }
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ids)
-        center.removeDeliveredNotifications(withIdentifiers: ids)
+        scheduler.removePending(identifiers: ids)
+        scheduler.removeDelivered(identifiers: ids)
         lastBurstScheduleTime = nil
         print("🗑️ Alarm burst cancelled")
     }
@@ -348,10 +354,10 @@ class BackgroundAudioPlayer: ObservableObject {
     }
 
     // MARK: - App Termination Warning (Dead Man's Switch)
-    private func scheduleTerminationWarning() {
-        let center = UNUserNotificationCenter.current()
+    /// internal: 테스트에서 직접 호출해 종료 경고 노티 등록 패턴을 검증한다.
+    func scheduleTerminationWarning() {
         // 이전 경고 노티 취소 후 1초 뒤로 재예약
-        center.removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+        scheduler.removePending(identifiers: ["appTerminationWarning"])
 
         let content = UNMutableNotificationContent()
         content.title = "CRock"
@@ -364,7 +370,27 @@ class BackgroundAudioPlayer: ObservableObject {
             content: content,
             trigger: trigger
         )
-        center.add(request)
+        scheduler.add(request)
+    }
+
+    // MARK: - Alarm Decision (순수 함수 — 단위 테스트 대상)
+    enum AlarmCheckResult: Equatable {
+        case ring                    // 알람 사운드 재생
+        case rescheduleToNextWeekday // 미선택 요일 → 다음 알람 시각으로
+        case wait                    // 알람 시각 전이거나 이미 알람 모드
+    }
+
+    /// 알람을 울려야 하는지 판정하는 순수 함수. 외부 상태를 읽지 않아 결정적이고 테스트 가능.
+    static func evaluateAlarm(
+        now: Date,
+        alarmTime: Date,
+        isAlarmMode: Bool,
+        selectedWeekdays: Set<Int>,
+        calendar: Calendar = .current
+    ) -> AlarmCheckResult {
+        guard now >= alarmTime, !isAlarmMode else { return .wait }
+        let weekday = calendar.component(.weekday, from: now)
+        return selectedWeekdays.contains(weekday) ? .ring : .rescheduleToNextWeekday
     }
 
     // MARK: - Check Alarm Time
@@ -376,26 +402,24 @@ class BackgroundAudioPlayer: ObservableObject {
             scheduleTerminationWarning()
         } else {
             // 알람 모드일 때는 경고 노티 취소
-            UNUserNotificationCenter.current()
-                .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+            scheduler.removePending(identifiers: ["appTerminationWarning"])
             // burst 노티를 계속 뒤로 밀어서 앱 살아있는 동안은 발사 안 되게
             refreshBurstIfNeeded()
         }
 
-        let now = Date()
-
-        // 알람 시간이 지났고, 아직 알람 모드가 아니라면
-        if now >= alarmTime && !isAlarmMode {
-            let currentWeekday = Calendar.current.component(.weekday, from: now)
-
-            // 현재 요일이 선택된 요일에 포함되어 있는지 확인
-            if selectedWeekdays.contains(currentWeekday) {
-                playAlarmSound()
-            } else {
-                // 선택되지 않은 요일이면 다음 알람 시간 업데이트
-                let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
-                updateNextAlarmTime(hour: comps.hour ?? 0, minute: comps.minute ?? 0)
-            }
+        switch Self.evaluateAlarm(
+            now: Date(),
+            alarmTime: alarmTime,
+            isAlarmMode: isAlarmMode,
+            selectedWeekdays: selectedWeekdays
+        ) {
+        case .ring:
+            playAlarmSound()
+        case .rescheduleToNextWeekday:
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
+            updateNextAlarmTime(hour: comps.hour ?? 0, minute: comps.minute ?? 0)
+        case .wait:
+            break
         }
     }
 
@@ -486,8 +510,7 @@ class BackgroundAudioPlayer: ObservableObject {
         cancelAlarmBurst()
 
         // 알람 끄면 종료 경고 노티도 취소
-        UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: ["appTerminationWarning"])
+        scheduler.removePending(identifiers: ["appTerminationWarning"])
 
         print("🛑 Background audio player stopped")
     }
