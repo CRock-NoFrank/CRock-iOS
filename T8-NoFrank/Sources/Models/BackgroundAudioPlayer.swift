@@ -267,16 +267,29 @@ class BackgroundAudioPlayer: ObservableObject {
         }
     }
 
-    /// 강제 종료 후 재실행 시 알람 상태 확인 (30분 이내만 유효)
+    /// 영속화된 알람 울림 상태가 "아직 유효한 복원 대상"인지 판정하는 순수 함수.
+    /// 외부 상태(UserDefaults/시계)를 읽지 않아 결정적이고 단위 테스트 가능. 30분 창 경계 검증용.
+    /// - Returns: 울리는 중(isRinging)이고 기록(timestamp>0)이 있으며 경과시간이 만료창 미만이면 true.
+    static func isAlarmRingingValid(
+        isRinging: Bool,
+        timestamp: Double,
+        now: Double,
+        maxDurationSec: TimeInterval
+    ) -> Bool {
+        guard isRinging, timestamp > 0 else { return false }
+        return (now - timestamp) < maxDurationSec
+    }
+
+    /// 강제 종료 후 재실행 시 알람 상태 확인 (30분 이내만 유효).
+    /// UserDefaults 읽기만 담당하고 판정은 순수 함수 isAlarmRingingValid에 위임한다.
     static func isAlarmRingingPersisted() -> Bool {
         let ud = UserDefaults(suiteName: appGroupID)
-        guard ud?.bool(forKey: isAlarmRingingKey) == true,
-              let timestamp = ud?.double(forKey: alarmRingingTimestampKey),
-              timestamp > 0
-        else { return false }
-
-        let elapsed = Date().timeIntervalSince1970 - timestamp
-        return elapsed < alarmRingingMaxDurationSec
+        return isAlarmRingingValid(
+            isRinging: ud?.bool(forKey: isAlarmRingingKey) == true,
+            timestamp: ud?.double(forKey: alarmRingingTimestampKey) ?? 0,
+            now: Date().timeIntervalSince1970,
+            maxDurationSec: alarmRingingMaxDurationSec
+        )
     }
 
     /// 영속화된 원래 시스템 볼륨 복원
