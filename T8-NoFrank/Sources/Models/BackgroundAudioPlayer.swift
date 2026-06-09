@@ -279,14 +279,6 @@ class BackgroundAudioPlayer: ObservableObject {
         return elapsed < alarmRingingMaxDurationSec
     }
 
-    /// 영속화된 알람 상태 초기화
-    static func clearAlarmRingingPersistence() {
-        let ud = UserDefaults(suiteName: appGroupID)
-        ud?.set(false, forKey: isAlarmRingingKey)
-        ud?.removeObject(forKey: alarmRingingTimestampKey)
-        ud?.removeObject(forKey: originalVolumeKey)
-    }
-
     /// 영속화된 원래 시스템 볼륨 복원
     func restoreOriginalVolumeFromPersistence() {
         if let saved = UserDefaults(suiteName: Self.appGroupID)?.double(forKey: Self.originalVolumeKey),

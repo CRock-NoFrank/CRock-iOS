@@ -17,7 +17,6 @@ enum Weekday: Int, CaseIterable {
     case sat = 7
 
     static let ordered: [Weekday] = [.sun, .mon, .tue, .wed, .thu, .fri, .sat]
-    static let weekdayCount = 7
 
     var assetPrefix: String {
         switch self {

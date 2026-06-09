@@ -20,7 +20,6 @@ class RockScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private let rockNode = SKSpriteNode()
-    private var currentRockSize: CGSize = .zero
 
     var tiltAcceleration: CGVector = .zero
     var isShaking: Bool = false
@@ -72,7 +71,6 @@ class RockScene: SKScene, SKPhysicsContactDelegate {
 
         if updatePhysics {
             rockNode.size = texture.size()
-            currentRockSize = texture.size()
 
             setupPhysicsBody()
         }
@@ -96,10 +94,6 @@ class RockScene: SKScene, SKPhysicsContactDelegate {
         body.contactTestBitMask = wallCategory
         
         rockNode.physicsBody = body
-    }
-
-    private func getRockSize(phase: Int) -> (CGFloat, CGFloat) {
-        return (0, 0)
     }
 
     func applyShake(vector: CGVector) {
