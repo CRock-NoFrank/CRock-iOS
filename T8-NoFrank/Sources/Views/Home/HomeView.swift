@@ -20,7 +20,12 @@ struct HomeView: View {
     @State private var isAnimating: Bool = false
     @State private var isModal: Bool = false
     @State private var Time: String = "00:00"
-    @State private var alarmTime = Date()
+    @State private var alarmTime: Date = {
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = 9
+        comps.minute = 41
+        return Calendar.current.date(from: comps) ?? Date()
+    }()
     @State private var shouldNavigate: Bool = false
     @State private var targetScreen: String = ""
     @State private var alarmVolume: Double = 1.0
@@ -111,17 +116,22 @@ struct HomeView: View {
         .ignoresSafeArea(.all)
         .onAppear {
             loadAlarm()
-            // 앱 시작 시 알람 및 마이크 권한 함께 요청
             NotificationService.requestAuthorization()
-            NotificationService.requestMicrophonePermission()
         }
         .sheet(isPresented: $isModal) {
             NavigationStack {
                 AlarmSettingView(
                     isAlarmEnabled: isEnabled,
-                    time: $alarmTime,
-                    days: $alarmDays,
-                    volume: $alarmVolume
+                    initialTime: alarmTime,
+                    initialDays: alarmDays,
+                    initialVolume: alarmVolume,
+                    onSave: { newTime, newDays, newVolume in
+                        alarmTime = newTime
+                        alarmDays = newDays
+                        alarmVolume = newVolume
+                        persistAlarm()
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
                 )
                 .navigationTitle(NSLocalizedString("alarm_edit_title", comment: "알람 편집"))
                 .navigationBarTitleDisplayMode(.inline)
@@ -131,12 +141,6 @@ struct HomeView: View {
             }
             .presentationDetents([.fraction(0.7)])
             .presentationDragIndicator(.visible)
-        }
-        .onChange(of: isModal) { newValue in
-            if newValue == false {
-                persistAlarm()
-            }
-            WidgetCenter.shared.reloadAllTimelines()
         }
         .onChange(of: isEnabled) { newValue in
             UserDefaults(suiteName: AppConstants.appGroupID)!.set(

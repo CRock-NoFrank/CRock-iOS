@@ -20,12 +20,15 @@ struct NotificationService {
             }
     }
     
-    static func requestMicrophonePermission() {
+    static func requestMicrophonePermission(completion: ((Bool) -> Void)? = nil) {
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
             if granted {
                 print("마이크 권한이 허용되었습니다.")
             } else {
                 print("마이크 권한이 거부되었습니다.")
+            }
+            DispatchQueue.main.async {
+                completion?(granted)
             }
         }
     }
