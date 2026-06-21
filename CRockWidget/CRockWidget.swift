@@ -56,28 +56,28 @@ private enum WidgetStore {
 struct Provider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
         let loaded = WidgetStore.load()
-        return SimpleEntry(date: Date(), configuration: ConfigurationAppIntent(), isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText)
+        return SimpleEntry(date: Date(), configuration: ConfigurationAppIntent(), isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, eyeFrame: 1)
     }
 
     func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> SimpleEntry {
         let loaded = WidgetStore.load()
-        return SimpleEntry(date: Date(), configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText)
+        return SimpleEntry(date: Date(), configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, eyeFrame: 1)
     }
     
     func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
         var entries: [SimpleEntry] = []
         let loaded = WidgetStore.load()
 
-        // 3초 간격으로 엔트리 생성 (얼굴 애니메이션 등 반영)
-        for secondOffset in stride(from: 0, through: 120, by: 3) {
-            let currentDate = Date()
-            let entryDate = Calendar.current.date(byAdding: .second, value: secondOffset, to: currentDate)!
-            let entry = SimpleEntry(date: entryDate, configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText)
+        // 1초 간격 × 9프레임 × 10사이클 = 90개 (90초 분량)
+        // WidgetKit 최소 신뢰 단위 = 1초, 이 이상 줄이면 프레임 씹힘
+        let currentDate = Date()
+        for i in 0 ..< 90 {
+            let entryDate = currentDate.addingTimeInterval(Double(i))
+            let frame = (i % 9) + 1
+            let entry = SimpleEntry(date: entryDate, configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, eyeFrame: frame)
             entries.append(entry)
         }
 
-        // .atEnd: 마지막 엔트리 소진 즉시 새 타임라인 요청
-        // → 앱에서 reloadAllTimelines()를 호출하면 즉각 최신 상태 반영
         return Timeline(entries: entries, policy: .atEnd)
     }
 }
@@ -88,6 +88,7 @@ struct SimpleEntry: TimelineEntry {
     let isEnabled: Bool
     let amPm: String
     let timeText: String
+    let eyeFrame: Int  // 1~9, small 위젯 눈 프레임 (날짜 계산 없이 직접 지정)
 
     var backgroundImageName: String {
         let weekday = Calendar.current.component(.weekday, from: date)
@@ -157,33 +158,21 @@ private struct SmallAlarmWidgetView: View {
 
     var body: some View {
         ZStack {
-            Image("CRockWidgetBigBackground")
+            Image("crock_wed_background")
                 .resizable()
                 .scaledToFill()
 
-            Image(faceImageName)
+            Image("crock_eye_\(entry.eyeFrame)")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 132, height: 84)
                 .padding(.top, 22)
                 .padding(.bottom, 57)
                 .padding(.horizontal, 16)
-                .contentTransition(.opacity)
-                .animation(.easeInOut(duration: 0.35), value: faceImageName)
+                .id(entry.eyeFrame)        // 프레임 번호로 뷰 교체 강제 → 잔상 방지
+                .transition(.identity)     // 삽입/제거 트랜지션 즉시 처리
         }
         .clipped()
-    }
-
-    private var faceImageName: String {
-        let phase = (Int(entry.date.timeIntervalSince1970) / 3) % 4
-        switch phase {
-        case 1:
-            return "CRockFace2"
-        case 3:
-            return "CRockFace3"
-        default:
-            return "CRockFace1"
-        }
     }
 }
 
@@ -364,17 +353,17 @@ extension ConfigurationAppIntent {
 #Preview(as: .accessoryCircular) {
     CRockWidget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "", timeText: "07:00")
+    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "", timeText: "07:00", eyeFrame: 1)
 }
 
 #Preview(as: .systemMedium) {
     CRockWidget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, isEnabled: true, amPm: "오전", timeText: "07:00")
+    SimpleEntry(date: .now, configuration: .smiley, isEnabled: true, amPm: "오전", timeText: "07:00", eyeFrame: 1)
 }
 
 #Preview(as: .systemSmall) {
     CRockWidget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "오전", timeText: "07:00")
+    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "오전", timeText: "07:00", eyeFrame: 1)
 }
