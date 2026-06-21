@@ -25,7 +25,7 @@ jobs:
       - name: Parse version from PR title
         run: |
           TITLE="${{ github.event.pull_request.title }}"
-          VERSION=$(echo "$TITLE" | grep -oP '\d+\.\d+\.\d+' | head -1)
+          VERSION=$(echo "$TITLE" | grep -oE '[0-9]+\.[0-9]+' | head -1)
 
           if [ -z "$VERSION" ]; then
             echo "::error::PR 타이틀에서 버전을 찾을 수 없습니다: $TITLE"
