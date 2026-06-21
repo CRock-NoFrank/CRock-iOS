@@ -66,15 +66,18 @@ struct Provider: AppIntentTimelineProvider {
     
     func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
         var entries: [SimpleEntry] = []
+        let loaded = WidgetStore.load()
 
-        let currentDate = Date()
+        // 3초 간격으로 엔트리 생성 (얼굴 애니메이션 등 반영)
         for secondOffset in stride(from: 0, through: 120, by: 3) {
+            let currentDate = Date()
             let entryDate = Calendar.current.date(byAdding: .second, value: secondOffset, to: currentDate)!
-            let loaded = WidgetStore.load()
             let entry = SimpleEntry(date: entryDate, configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText)
             entries.append(entry)
         }
 
+        // .atEnd: 마지막 엔트리 소진 즉시 새 타임라인 요청
+        // → 앱에서 reloadAllTimelines()를 호출하면 즉각 최신 상태 반영
         return Timeline(entries: entries, policy: .atEnd)
     }
 }
@@ -85,6 +88,19 @@ struct SimpleEntry: TimelineEntry {
     let isEnabled: Bool
     let amPm: String
     let timeText: String
+
+    var backgroundImageName: String {
+        let weekday = Calendar.current.component(.weekday, from: date)
+        let names = ["crock_sun_background",
+                     "crock_mon_background",
+                     "crock_tue_background",
+                     "crock_wed_background",
+                     "crock_thu_background",
+                     "crock_fri_background",
+                     "crock_sat_background"]
+        let index = max(0, min(weekday - 1, names.count - 1))
+        return names[index]
+    }
 }
 
 struct CRockWidgetEntryView : View {
@@ -126,15 +142,12 @@ struct CRockWidgetEntryView : View {
                     }
                 }
             }
-        case .systemMedium:
-            MediumAlarmWidgetView(entry: entry)
         case .systemSmall:
             SmallAlarmWidgetView(entry: entry)
+        case .systemMedium:
+            MediumAlarmWidgetView(entry: entry)
         default:
-            VStack {
-                Text(entry.date, style: .time)
-                Text(entry.configuration.favoriteEmoji)
-            }
+            EmptyView()
         }
     }
 }
@@ -264,12 +277,13 @@ private struct MediumAlarmWidgetView: View {
         components.hour = hour
         components.minute = minute
 
-        guard var alarmDate = calendar.date(from: components) else {
+        guard let alarmDate = calendar.date(from: components) else {
             return NSLocalizedString("widget_alarm_on_message", comment: "알람이 울려요")
         }
 
+        // 오늘 알람 시간이 이미 지났으면 → 오늘은 알람 없음
         if alarmDate <= date {
-            alarmDate = calendar.date(byAdding: .day, value: 1, to: alarmDate) ?? alarmDate
+            return NSLocalizedString("widget_no_alarm", comment: "없음")
         }
 
         let diff = calendar.dateComponents([.hour, .minute], from: date, to: alarmDate)
