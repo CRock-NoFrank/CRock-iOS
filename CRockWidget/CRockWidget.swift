@@ -179,7 +179,7 @@ private struct MediumAlarmWidgetView: View {
 
     var body: some View {
         ZStack {
-            Image("CRockWidgetBigBackground")
+            Image(dailyBackgroundImageName)
                 .resizable()
                 .scaledToFill()
 
@@ -230,6 +230,21 @@ private struct MediumAlarmWidgetView: View {
             .padding(.all, 18)
         }
         .clipped()
+    }
+
+    private var dailyBackgroundImageName: String {
+        let weekday = Calendar.current.component(.weekday, from: entry.date)
+        // weekday: 1 = Sun, 2 = Mon, 3 = Tue, 4 = Wed, 5 = Thu, 6 = Fri, 7 = Sat
+        switch weekday {
+        case 1: return "crock_sun_background"
+        case 2: return "crock_mon_background"
+        case 3: return "crock_tue_background"
+        case 4: return "crock_wed_background"
+        case 5: return "crock_thu_background"
+        case 6: return "crock_fri_background"
+        case 7: return "crock_sat_background"
+        default: return "CRockWidgetBigBackground"
+        }
     }
 
     private var statusText: String {
