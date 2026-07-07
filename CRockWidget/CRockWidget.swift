@@ -186,12 +186,19 @@ private struct MediumAlarmWidgetView: View {
                 .scaledToFill()
 
             HStack {
-                VStack(alignment: .leading, spacing: 0) {
+                Image(entry.isEnabled ? "CRockAlarmOn" : "CRockAlarmOff")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 125, height: 79)
+                    .padding(.leading, 18)
+
+                VStack(alignment: .trailing, spacing: 0) {
                     Text(statusText)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Color.black.opacity(0.62))
                         .lineLimit(2)
                         .lineSpacing(2)
+                        .multilineTextAlignment(.trailing)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.bottom, 12)
 
@@ -206,6 +213,7 @@ private struct MediumAlarmWidgetView: View {
                     .minimumScaleFactor(0.75)
                     .lineLimit(1)
                     .padding(.bottom, 2)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
 
                     Button(intent: ToggleAlarmIntent()) {
                         WidgetToggle(
@@ -220,14 +228,9 @@ private struct MediumAlarmWidgetView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(entry.isEnabled ? "CRockAlarmOn" : "CRockAlarmOff")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 121)
-                    .padding(.trailing, 15)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .padding(.all, 18)
         }
