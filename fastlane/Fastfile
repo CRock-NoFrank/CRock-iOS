@@ -13,10 +13,14 @@ platform :ios do
     # 시뮬레이터 이름은 워크플로우에서 TEST_SIMULATOR로 주입. 없으면 iPhone 17로 폴백.
     device = (ENV["TEST_SIMULATOR"].to_s.strip.empty? ? "iPhone 17" : ENV["TEST_SIMULATOR"].strip)
 
+    # destination을 직접 넘기고 자동 탐지를 끈다.
+    # (fastlane 2.230.0는 Xcode 26.4.1의 `xcrun simctl runtime match list` 출력 파싱이 깨져,
+    #  devices: 로 자동 탐지시키면 run_tests가 실패함. 배포 레인 영향 없이 우회하려면 여기서 끈다.)
     run_tests(
       project: "T8-NoFrank.xcodeproj",
       scheme: "T8-NoFrank",
-      devices: [device],
+      destination: "platform=iOS Simulator,name=#{device}",
+      skip_detect_devices: true,
       clean: true,
       code_coverage: false,
       # 시뮬레이터 테스트는 서명 불필요 → 서명 시도 자체를 끔
