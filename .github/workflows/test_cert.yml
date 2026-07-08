@@ -7,12 +7,29 @@ jobs:
   test-cert:
     runs-on: macos-26
     steps:
+      - name: Debug - Check secrets are set
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+        run: |
+          if [ -z "$MATCH_GIT_URL" ]; then
+            echo "❌ MATCH_GIT_URL is EMPTY"
+          else
+            echo "✅ MATCH_GIT_URL is set (length: ${#MATCH_GIT_URL})"
+          fi
+
+          if [ -z "$MATCH_GIT_BASIC_AUTHORIZATION" ]; then
+            echo "❌ MATCH_GIT_BASIC_AUTHORIZATION is EMPTY"
+          else
+            echo "✅ MATCH_GIT_BASIC_AUTHORIZATION is set (length: ${#MATCH_GIT_BASIC_AUTHORIZATION})"
+          fi
+
       - name: Test cert repo clone
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
           git clone "$MATCH_GIT_URL" /tmp/test-clone \
             -c http.extraheader="Authorization: Basic $MATCH_GIT_BASIC_AUTHORIZATION" \
             --depth 1
           echo "✅ Clone succeeded!"
-        env:
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
