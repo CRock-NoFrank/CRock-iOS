@@ -29,7 +29,12 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
-          git config --global credential.helper ""
-          git config --global http.extraheader "Authorization: Basic $MATCH_GIT_BASIC_AUTHORIZATION"
-          GIT_TERMINAL_PROMPT=0 git clone "$MATCH_GIT_URL" /tmp/test-clone --depth 1
+          # base64 디코딩해서 형식 확인 (앞 10자만 출력)
+          DECODED=$(printf '%s' "$MATCH_GIT_BASIC_AUTHORIZATION" | base64 --decode)
+          echo "Decoded prefix (first 10 chars): ${DECODED:0:10}..."
+          echo "Contains colon: $(echo "$DECODED" | grep -c ':')"
+
+          # URL에 직접 인증 정보 삽입
+          AUTH_URL="${MATCH_GIT_URL/https:\/\//https://${DECODED}@}"
+          GIT_TERMINAL_PROMPT=0 git clone "$AUTH_URL" /tmp/test-clone --depth 1
           echo "✅ Clone succeeded!"
