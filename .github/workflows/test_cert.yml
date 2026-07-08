@@ -1,5 +1,18 @@
-- name: Test cert repo access
-  run: |
-    git clone https://${{ secrets.MATCH_GIT_URL }} /tmp/test-clone \
-      -c http.extraheader="Authorization: Basic ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}" \
-      --depth 1
+name: Test Cert Repo Access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-cert:
+    runs-on: macos-26
+    steps:
+      - name: Test cert repo clone
+        run: |
+          git clone "$MATCH_GIT_URL" /tmp/test-clone \
+            -c http.extraheader="Authorization: Basic $MATCH_GIT_BASIC_AUTHORIZATION" \
+            --depth 1
+          echo "✅ Clone succeeded!"
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
