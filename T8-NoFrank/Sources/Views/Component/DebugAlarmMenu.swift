@@ -29,7 +29,7 @@ struct DebugAlarmMenu: View {
                 BackgroundAudioPlayer.shared.stopAlarmAndBackToSilent()
                 AppRouter.shared.navigate(.home)
             } label: {
-                Label("알람 종료하기", systemImage: "alarm.slash.fill")
+                Label("알람 종료하기", systemImage: "stop.circle.fill")
             }
         } label: {
             Image(systemName: "ladybug.fill")
