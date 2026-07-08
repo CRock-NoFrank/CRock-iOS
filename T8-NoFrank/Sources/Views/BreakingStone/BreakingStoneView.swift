@@ -44,6 +44,9 @@ struct BreakingStoneView: View {
                 alarmMinute = minute
             }
         }
+        #if DEBUG
+        .debugAlarmOverlay()
+        #endif
     }
 }
 

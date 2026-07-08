@@ -181,6 +181,9 @@ struct HomeView: View {
             }
             WidgetCenter.shared.reloadAllTimelines()
         }
+        #if DEBUG
+        .debugAlarmOverlay()
+        #endif
     }
 
     private var timeTextFormatted: String {
