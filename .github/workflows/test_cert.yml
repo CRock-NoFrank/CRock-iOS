@@ -29,7 +29,9 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: |
-          git clone "$MATCH_GIT_URL" /tmp/test-clone \
+          git \
+            -c credential.helper='' \
             -c http.extraheader="Authorization: Basic $MATCH_GIT_BASIC_AUTHORIZATION" \
+            clone "$MATCH_GIT_URL" /tmp/test-clone \
             --depth 1
           echo "✅ Clone succeeded!"
