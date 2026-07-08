@@ -8,6 +8,7 @@
 
 #if DEBUG
 import SwiftUI
+import UIKit
 
 /// 우상단 툴바 위치에 뜨는 디버그 서랍(Menu).
 /// 벌레 아이콘을 누르면 "알람 울리기 / 알람 종료하기" 두 액션이 펼쳐진다.
@@ -41,21 +42,26 @@ struct DebugAlarmMenu: View {
     }
 }
 
+/// 실제 윈도우의 상단 safe area inset(노치/다이내믹 아일랜드 높이).
+///
+/// SwiftUI의 `GeometryReader.safeAreaInsets`는 부모가 `.ignoresSafeArea`면 0으로 잡혀
+/// 오버레이가 노치 위로 올라가버린다. 그래서 SwiftUI 계층이 아닌 UIKit 윈도우에서 직접 읽는다.
+private var deviceTopSafeAreaInset: CGFloat {
+    UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .flatMap { $0.windows }
+        .first { $0.isKeyWindow }?
+        .safeAreaInsets.top ?? 0
+}
+
 extension View {
-    /// 어떤 화면이든 우상단 안전영역에 디버그 메뉴를 얹는다.
+    /// 어떤 화면이든 우상단 안전영역 안쪽(노치 바로 아래 툴바 위치)에 디버그 메뉴를 얹는다.
     /// 배포 빌드에서 흔적을 남기지 않도록 호출부도 `#if DEBUG`로 감싼다.
-    ///
-    /// GeometryReader로 실제 safe area top을 읽어 위치를 잡는다.
-    /// - 부모가 `.ignoresSafeArea`면 safeAreaInsets.top이 노치 높이(~59)로 잡혀 그만큼 내려가고,
-    /// - 부모가 safe area를 지키면 top이 ~0이라, 두 화면 모두 노치 바로 아래 툴바 위치에 정렬된다.
     func debugAlarmOverlay() -> some View {
         overlay(alignment: .topTrailing) {
-            GeometryReader { proxy in
-                DebugAlarmMenu()
-                    .padding(.top, proxy.safeAreaInsets.top + 8)
-                    .padding(.trailing, 16)
-                    .frame(maxWidth: .infinity, alignment: .topTrailing)
-            }
+            DebugAlarmMenu()
+                .padding(.top, deviceTopSafeAreaInset + 8)
+                .padding(.trailing, 16)
         }
     }
 }
