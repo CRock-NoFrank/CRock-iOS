@@ -6,6 +6,24 @@ Dotenv.load('.env.dev') unless ENV['CI']
 default_platform(:ios)
 
 platform :ios do
+  desc "PR 검증용 단위 테스트 실행 (시뮬레이터, 서명 불필요)"
+  lane :tests do
+    setup_ci if is_ci
+
+    # 시뮬레이터 이름은 워크플로우에서 TEST_SIMULATOR로 주입. 없으면 iPhone 17로 폴백.
+    device = (ENV["TEST_SIMULATOR"].to_s.strip.empty? ? "iPhone 17" : ENV["TEST_SIMULATOR"].strip)
+
+    run_tests(
+      project: "T8-NoFrank.xcodeproj",
+      scheme: "T8-NoFrank",
+      devices: [device],
+      clean: true,
+      code_coverage: false,
+      # 시뮬레이터 테스트는 서명 불필요 → 서명 시도 자체를 끔
+      xcargs: "CODE_SIGNING_ALLOWED=NO"
+    )
+  end
+
   lane :beta do
     setup_ci if is_ci
 
