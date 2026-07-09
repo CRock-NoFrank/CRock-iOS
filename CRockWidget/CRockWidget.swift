@@ -265,25 +265,59 @@ private struct MediumAlarmWidgetView: View {
         let hour = hour24(from: entry.amPm, timeText: entry.timeText)
         let minute = Int(entry.timeText.split(separator: ":").last ?? "0") ?? 0
 
+        // 오늘 날짜 기준으로 알람 시각 계산
         var components = calendar.dateComponents([.year, .month, .day], from: date)
         components.hour = hour
         components.minute = minute
+        components.second = 0
 
-        guard let alarmDate = calendar.date(from: components) else {
+        guard let todayAlarmDate = calendar.date(from: components) else {
             return NSLocalizedString("widget_alarm_on_message", comment: "알람이 울려요")
         }
 
-        // 오늘 알람 시간이 이미 지났으면 → 오늘은 알람 없음
-        if alarmDate <= date {
-            return NSLocalizedString("widget_no_alarm", comment: "없음")
+        // 오늘 알람이 아직 남아 있으면 → 남은 시간 표시
+        if todayAlarmDate > date {
+            let diff = calendar.dateComponents([.hour, .minute], from: date, to: todayAlarmDate)
+            return String(
+                format: NSLocalizedString("widget_alarm_remaining_format", comment: "%d시간 %d분 뒤에 알람이 울려요"),
+                diff.hour ?? 0,
+                diff.minute ?? 0
+            )
         }
 
-        let diff = calendar.dateComponents([.hour, .minute], from: date, to: alarmDate)
-        return String(
-            format: NSLocalizedString("widget_alarm_remaining_format", comment: "%d시간 %d분 뒤에 알람이 울려요"),
-            diff.hour ?? 0,
-            diff.minute ?? 0
-        )
+        // 오늘 알람이 이미 지났으면 → 내일 알람 계산
+        guard let tomorrowAlarmDate = calendar.date(byAdding: .day, value: 1, to: todayAlarmDate) else {
+            return NSLocalizedString("widget_alarm_on_message", comment: "알람이 울려요")
+        }
+
+        let secondsUntilTomorrow = tomorrowAlarmDate.timeIntervalSince(date)
+
+        if secondsUntilTomorrow <= 24 * 60 * 60 {
+            // 24시간 이내 → 남은 시간 표시
+            let diff = calendar.dateComponents([.hour, .minute], from: date, to: tomorrowAlarmDate)
+            return String(
+                format: NSLocalizedString("widget_alarm_remaining_format", comment: "%d시간 %d분 뒤에 알람이 울려요"),
+                diff.hour ?? 0,
+                diff.minute ?? 0
+            )
+        } else {
+            // 24시간 초과 → 다음 알람 요일 표시
+            let weekday = calendar.component(.weekday, from: tomorrowAlarmDate)
+            let dayNames = [
+                NSLocalizedString("weekday_sun", comment: "일"),
+                NSLocalizedString("weekday_mon", comment: "월"),
+                NSLocalizedString("weekday_tue", comment: "화"),
+                NSLocalizedString("weekday_wed", comment: "수"),
+                NSLocalizedString("weekday_thu", comment: "목"),
+                NSLocalizedString("weekday_fri", comment: "금"),
+                NSLocalizedString("weekday_sat", comment: "토")
+            ]
+            let dayName = dayNames[max(0, min(weekday - 1, dayNames.count - 1))]
+            return String(
+                format: NSLocalizedString("widget_no_alarm_24h_format", comment: "24시간 내에 알람이 없어요\n다음 알람은 %@요일이에요"),
+                dayName
+            )
+        }
     }
 
     private func hour24(from amPm: String, timeText: String) -> Int {

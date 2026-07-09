@@ -5,3 +5,12 @@
 "widget_alarm_setup_prompt" = "Press the switch to\nset your alarm";
 "widget_alarm_on_message" = "Alarm is on";
 "widget_alarm_remaining_format" = "Alarm rings in\n%d hr %d min";
+"widget_no_alarm_24h_format" = "No alarm in 24 hours\nNext alarm: %@ day";
+
+"weekday_sun" = "Sun";
+"weekday_mon" = "Mon";
+"weekday_tue" = "Tue";
+"weekday_wed" = "Wed";
+"weekday_thu" = "Thu";
+"weekday_fri" = "Fri";
+"weekday_sat" = "Sat";
