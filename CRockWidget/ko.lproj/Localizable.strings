@@ -6,11 +6,4 @@
 "widget_alarm_on_message" = "알람이 울려요";
 "widget_alarm_remaining_format" = "%d시간 %d분 뒤에\n알람이 울려요";
 "widget_no_alarm_24h_format" = "24시간 내에 알람이 없어요\n다음 알람은 %@요일이에요";
-
-"weekday_sun" = "일";
-"weekday_mon" = "월";
-"weekday_tue" = "화";
-"weekday_wed" = "수";
-"weekday_thu" = "목";
-"weekday_fri" = "금";
-"weekday_sat" = "토";
+"widget_no_alarm_24h" = "24시간 내에\n알람이 없어요";

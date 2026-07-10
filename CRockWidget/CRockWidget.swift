@@ -15,53 +15,42 @@ enum AppConstants {
 private enum WidgetStore {
     static let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
 
-    static func load() -> (isEnabled: Bool, amPm: String, timeText: String) {
+    static func load() -> (isEnabled: Bool, amPm: String, timeText: String, alarmHour: Int, alarmMinute: Int, selectedWeekdays: Set<Int>) {
         let enabled = defaults?.bool(forKey: "isAlarmEnabled") ?? false
-        let hour = defaults?.integer(forKey: "alarmHour")
-        let minute = defaults?.integer(forKey: "alarmMinute")
+        let hour = defaults?.integer(forKey: "alarmHour") ?? 7
+        let minute = defaults?.integer(forKey: "alarmMinute") ?? 0
         let hasHM = (defaults?.object(forKey: "alarmHour") != nil) && (defaults?.object(forKey: "alarmMinute") != nil)
 
-        if enabled, hasHM, let h = hour, let m = minute {
-            let ampm = h < 12
-                ? NSLocalizedString("alarm_am", comment: "오전")
-                : NSLocalizedString("alarm_pm", comment: "오후")
-            var displayHour = h
-            if displayHour == 0 {
-                displayHour = 12
-            } else if displayHour > 12 {
-                displayHour -= 12
-            }
-            let timeText = String(format: "%02d:%02d", displayHour, m)
-            return (true, ampm, timeText)
-        } else {
-            if hasHM, let h = hour, let m = minute {
-                let ampm = h < 12
-                    ? NSLocalizedString("alarm_am", comment: "오전")
-                    : NSLocalizedString("alarm_pm", comment: "오후")
-                var displayHour = h
-                if displayHour == 0 {
-                    displayHour = 12
-                } else if displayHour > 12 {
-                    displayHour -= 12
-                }
-                let timeText = String(format: "%02d:%02d", displayHour, m)
-                return (enabled, ampm, timeText)
-            } else {
-                return (enabled, NSLocalizedString("alarm_am", comment: "오전"), "07:00")
-            }
+        // 선택된 요일 로드 (rawValue Int 배열: 1=일, 2=월, ... 7=토)
+        let weekdayArray = defaults?.array(forKey: "alarmSelectedWeekdays") as? [Int] ?? []
+        let selectedWeekdays = Set(weekdayArray)
+
+        let h = hasHM ? hour : 7
+        let m = hasHM ? minute : 0
+
+        let ampm = h < 12
+            ? NSLocalizedString("alarm_am", comment: "오전")
+            : NSLocalizedString("alarm_pm", comment: "오후")
+        var displayHour = h
+        if displayHour == 0 {
+            displayHour = 12
+        } else if displayHour > 12 {
+            displayHour -= 12
         }
+        let timeText = String(format: "%02d:%02d", displayHour, m)
+        return (enabled, ampm, timeText, h, m, selectedWeekdays)
     }
 }
 
 struct Provider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
         let loaded = WidgetStore.load()
-        return SimpleEntry(date: Date(), configuration: ConfigurationAppIntent(), isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, eyeFrame: 1)
+        return SimpleEntry(date: Date(), configuration: ConfigurationAppIntent(), isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, alarmHour: loaded.alarmHour, alarmMinute: loaded.alarmMinute, selectedWeekdays: loaded.selectedWeekdays, eyeFrame: 1)
     }
 
     func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> SimpleEntry {
         let loaded = WidgetStore.load()
-        return SimpleEntry(date: Date(), configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, eyeFrame: 1)
+        return SimpleEntry(date: Date(), configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, alarmHour: loaded.alarmHour, alarmMinute: loaded.alarmMinute, selectedWeekdays: loaded.selectedWeekdays, eyeFrame: 1)
     }
     
     func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
@@ -74,7 +63,7 @@ struct Provider: AppIntentTimelineProvider {
         for i in 0 ..< 90 {
             let entryDate = currentDate.addingTimeInterval(Double(i))
             let frame = (i % 9) + 1
-            let entry = SimpleEntry(date: entryDate, configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, eyeFrame: frame)
+            let entry = SimpleEntry(date: entryDate, configuration: configuration, isEnabled: loaded.isEnabled, amPm: loaded.amPm, timeText: loaded.timeText, alarmHour: loaded.alarmHour, alarmMinute: loaded.alarmMinute, selectedWeekdays: loaded.selectedWeekdays, eyeFrame: frame)
             entries.append(entry)
         }
 
@@ -88,6 +77,9 @@ struct SimpleEntry: TimelineEntry {
     let isEnabled: Bool
     let amPm: String
     let timeText: String
+    let alarmHour: Int       // 24시간 기준 원본 시
+    let alarmMinute: Int     // 원본 분
+    let selectedWeekdays: Set<Int>  // 1=일, 2=월, ... 7=토
     let eyeFrame: Int  // 1~9, small 위젯 눈 프레임 (날짜 계산 없이 직접 지정)
 
     var backgroundImageName: String {
@@ -252,6 +244,7 @@ private struct MediumAlarmWidgetView: View {
         }
     }
 
+
     private var statusText: String {
         if entry.isEnabled {
             return alarmRemainingText(from: entry.date)
@@ -262,68 +255,57 @@ private struct MediumAlarmWidgetView: View {
 
     private func alarmRemainingText(from date: Date) -> String {
         let calendar = Calendar.current
-        let hour = hour24(from: entry.amPm, timeText: entry.timeText)
-        let minute = Int(entry.timeText.split(separator: ":").last ?? "0") ?? 0
+        let selectedWeekdays = entry.selectedWeekdays
+        let alarmHour = entry.alarmHour
+        let alarmMinute = entry.alarmMinute
 
-        // 오늘 날짜 기준으로 알람 시각 계산
-        var components = calendar.dateComponents([.year, .month, .day], from: date)
-        components.hour = hour
-        components.minute = minute
-        components.second = 0
+        let dayNames = [
+            NSLocalizedString("weekday_sun", comment: "일"),
+            NSLocalizedString("weekday_mon", comment: "월"),
+            NSLocalizedString("weekday_tue", comment: "화"),
+            NSLocalizedString("weekday_wed", comment: "수"),
+            NSLocalizedString("weekday_thu", comment: "목"),
+            NSLocalizedString("weekday_fri", comment: "금"),
+            NSLocalizedString("weekday_sat", comment: "토")
+        ]
 
-        guard let todayAlarmDate = calendar.date(from: components) else {
-            return NSLocalizedString("widget_alarm_on_message", comment: "알람이 울려요")
+        // 선택된 요일이 없으면 → 요일 구분 없이 매일 알람으로 취급
+        let useAnyDay = selectedWeekdays.isEmpty
+
+        // 앞으로 7일 안에서 알람이 켜진 가장 가까운 날짜를 탐색 (오늘 포함)
+        for dayOffset in 0..<8 {
+            guard let candidateDay = calendar.date(byAdding: .day, value: dayOffset, to: date) else { continue }
+
+            var comps = calendar.dateComponents([.year, .month, .day], from: candidateDay)
+            comps.hour = alarmHour
+            comps.minute = alarmMinute
+            comps.second = 0
+            guard let candidateAlarmDate = calendar.date(from: comps) else { continue }
+
+            guard candidateAlarmDate > date else { continue }
+
+            let weekdayOfCandidate = calendar.component(.weekday, from: candidateAlarmDate)
+            guard useAnyDay || selectedWeekdays.contains(weekdayOfCandidate) else { continue }
+
+            let secondsUntil = candidateAlarmDate.timeIntervalSince(date)
+            if secondsUntil <= 24 * 60 * 60 {
+                let diff = calendar.dateComponents([.hour, .minute], from: date, to: candidateAlarmDate)
+                return String(
+                    format: NSLocalizedString("widget_alarm_remaining_format", comment: "%d시간 %d분 뒤에 알람이 울려요"),
+                    diff.hour ?? 0,
+                    diff.minute ?? 0
+                )
+            } else {
+                return NSLocalizedString("widget_no_alarm_24h", comment: "24시간 내에\n알람이 없어요")
+            }
         }
 
-        // 오늘 알람이 아직 남아 있으면 → 남은 시간 표시
-        if todayAlarmDate > date {
-            let diff = calendar.dateComponents([.hour, .minute], from: date, to: todayAlarmDate)
-            return String(
-                format: NSLocalizedString("widget_alarm_remaining_format", comment: "%d시간 %d분 뒤에 알람이 울려요"),
-                diff.hour ?? 0,
-                diff.minute ?? 0
-            )
-        }
-
-        // 오늘 알람이 이미 지났으면 → 내일 알람 계산
-        guard let tomorrowAlarmDate = calendar.date(byAdding: .day, value: 1, to: todayAlarmDate) else {
-            return NSLocalizedString("widget_alarm_on_message", comment: "알람이 울려요")
-        }
-
-        let secondsUntilTomorrow = tomorrowAlarmDate.timeIntervalSince(date)
-
-        if secondsUntilTomorrow <= 24 * 60 * 60 {
-            // 24시간 이내 → 남은 시간 표시
-            let diff = calendar.dateComponents([.hour, .minute], from: date, to: tomorrowAlarmDate)
-            return String(
-                format: NSLocalizedString("widget_alarm_remaining_format", comment: "%d시간 %d분 뒤에 알람이 울려요"),
-                diff.hour ?? 0,
-                diff.minute ?? 0
-            )
-        } else {
-            // 24시간 초과 → 다음 알람 요일 표시
-            let weekday = calendar.component(.weekday, from: tomorrowAlarmDate)
-            let dayNames = [
-                NSLocalizedString("weekday_sun", comment: "일"),
-                NSLocalizedString("weekday_mon", comment: "월"),
-                NSLocalizedString("weekday_tue", comment: "화"),
-                NSLocalizedString("weekday_wed", comment: "수"),
-                NSLocalizedString("weekday_thu", comment: "목"),
-                NSLocalizedString("weekday_fri", comment: "금"),
-                NSLocalizedString("weekday_sat", comment: "토")
-            ]
-            let dayName = dayNames[max(0, min(weekday - 1, dayNames.count - 1))]
-            return String(
-                format: NSLocalizedString("widget_no_alarm_24h_format", comment: "24시간 내에 알람이 없어요\n다음 알람은 %@요일이에요"),
-                dayName
-            )
-        }
+        return NSLocalizedString("widget_alarm_on_message", comment: "알람이 울려요")
     }
 
     private func hour24(from amPm: String, timeText: String) -> Int {
         let hour12 = Int(timeText.split(separator: ":").first ?? "7") ?? 7
         let isPM = amPm == NSLocalizedString("alarm_pm", comment: "오후")
-
         if isPM {
             return hour12 == 12 ? 12 : hour12 + 12
         } else {
@@ -390,17 +372,17 @@ extension ConfigurationAppIntent {
 #Preview(as: .accessoryCircular) {
     CRockWidget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "", timeText: "07:00", eyeFrame: 1)
+    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "", timeText: "07:00", alarmHour: 7, alarmMinute: 0, selectedWeekdays: [], eyeFrame: 1)
 }
 
 #Preview(as: .systemMedium) {
     CRockWidget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, isEnabled: true, amPm: "오전", timeText: "07:00", eyeFrame: 1)
+    SimpleEntry(date: .now, configuration: .smiley, isEnabled: true, amPm: "오전", timeText: "07:00", alarmHour: 7, alarmMinute: 0, selectedWeekdays: [2, 3, 4, 5, 6], eyeFrame: 1)
 }
 
 #Preview(as: .systemSmall) {
     CRockWidget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "오전", timeText: "07:00", eyeFrame: 1)
+    SimpleEntry(date: .now, configuration: .smiley, isEnabled: false, amPm: "오전", timeText: "07:00", alarmHour: 7, alarmMinute: 0, selectedWeekdays: [], eyeFrame: 1)
 }
