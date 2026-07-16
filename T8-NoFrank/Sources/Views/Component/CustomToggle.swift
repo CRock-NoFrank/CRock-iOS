@@ -26,14 +26,6 @@ struct CustomToggle: View {
     }
 }
 
-struct CustomToggleExample: View {
-    @State var previewIsOn: Bool = false
-
-    var body: some View {
-        CustomToggle(isOn: $previewIsOn)
-    }
-}
-
 #Preview {
-    CustomToggleExample()
+    CustomToggle(isOn: .constant(false))
 }

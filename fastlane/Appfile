@@ -1,6 +1,9 @@
-# app_identifier("[[APP_IDENTIFIER]]") # The bundle identifier of your app
-# apple_id("[[APPLE_ID]]") # Your Apple Developer Portal username
+require 'dotenv'
 
+fastlane_dir = (defined?(FastlaneCore::FastlaneFolder) && FastlaneCore::FastlaneFolder.path) || File.join(Dir.pwd, 'fastlane')
+env_path = File.expand_path('../.env.dev', fastlane_dir)
+Dotenv.overload(env_path) if File.exist?(env_path)
 
-# For more information about the Appfile, see:
-#     https://docs.fastlane.tools/advanced/#appfile
+app_identifier(ENV.fetch('APP_IDENTIFIER', 'com.CRock.T8-NoFrank'))
+apple_id(ENV.fetch('APPLE_ID'))
+team_id(ENV.fetch('APPLE_TEAM_ID'))
