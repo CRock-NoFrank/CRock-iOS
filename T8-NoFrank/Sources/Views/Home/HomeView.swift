@@ -17,22 +17,16 @@ struct HomeView: View {
         "isAlarmEnabled",
         store: UserDefaults(suiteName: AppConstants.appGroupID)!
     ) private var isEnabled: Bool = false
-    @State private var isAnimating: Bool = false
     @State private var isModal: Bool = false
-    @State private var Time: String = "00:00"
     @State private var alarmTime: Date = {
         var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         comps.hour = 9
         comps.minute = 41
         return Calendar.current.date(from: comps) ?? Date()
     }()
-    @State private var shouldNavigate: Bool = false
-    @State private var targetScreen: String = ""
     @State private var alarmVolume: Double = 1.0
     @State private var alarmDays: [AlarmSettingView.DayItem] =
         Weekday.ordered.map { .init(weekday: $0, isSelected: false) }
-
-    @Environment(\.dismiss) private var dismiss
 
     private var nextAlarmWeekday: Weekday? {
         let selectedWeekdays = Set(
@@ -202,28 +196,6 @@ struct HomeView: View {
             hour -= 12
         }
         return String(format: "%02d:%02d", hour, minute)
-    }
-    private func checkNotificationNavigation() {
-        if UserDefaults(suiteName: AppConstants.appGroupID)!.bool(
-            forKey: "shouldNavigate"
-        ) {
-            shouldNavigate = true
-            targetScreen =
-                UserDefaults(suiteName: AppConstants.appGroupID)!.string(
-                    forKey: "targetScreen"
-                ) ?? ""
-
-            // 신호 초기화
-            UserDefaults(suiteName: AppConstants.appGroupID)!.set(
-                false,
-                forKey: "shouldNavigate"
-            )
-            UserDefaults(suiteName: AppConstants.appGroupID)!.removeObject(
-                forKey: "targetScreen"
-            )
-
-            print("노티피케이션으로 \(targetScreen) 화면으로 이동")
-        }
     }
 
     private func persistAlarm() {

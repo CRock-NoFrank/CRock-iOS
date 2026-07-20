@@ -1,0 +1,100 @@
+name: PR Release Draft
+
+permissions:
+  contents: write
+  pull-requests: read
+
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  draft-release:
+    # PR 타이틀에 'Release'가 포함된 경우에만 실행
+    if: contains(github.event.pull_request.title, 'Release')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse version from PR title
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          VERSION=$(echo "$TITLE" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::PR 타이틀에서 버전을 찾을 수 없습니다: $TITLE"
+            exit 1
+          fi
+
+          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "RELEASE_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+
+      - name: Build changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          configurationJson: |
+            {
+              "categories": [
+                {
+                  "title": "## ✨ Features",
+                  "labels": ["Feature"],
+                  "rules": [
+                    { "on_property": "title", "pattern": "^✨" }
+                  ]
+                },
+                {
+                  "title": "## 🐛 Bug Fixes",
+                  "labels": ["Bug", "QA"],
+                  "rules": [
+                    { "on_property": "title", "pattern": "^🐛" }
+                  ]
+                },
+                {
+                  "title": "## ♻️ Refactoring",
+                  "labels": ["Refactor"],
+                  "rules": [
+                    { "on_property": "title", "pattern": "^♻️" }
+                  ]
+                },
+                {
+                  "title": "## 🎨 Design",
+                  "labels": ["Design"],
+                  "rules": [
+                    { "on_property": "title", "pattern": "^🎨" }
+                  ]
+                },
+                {
+                  "title": "## 📄 Documentation",
+                  "labels": ["Docs"],
+                  "rules": [
+                    { "on_property": "title", "pattern": "^📄" }
+                  ]
+                }
+              ],
+              "ignore_labels": ["Release"],
+              "template": "#{{CHANGELOG}}\n\n<details>\n<summary>Uncategorized</summary>\n\n#{{UNCATEGORIZED}}\n</details>\n\n## Contributors:\n- #{{CONTRIBUTORS}}",
+              "pr_template": "- #{{TITLE}}\n  - PR: [##{{NUMBER}}](#{{URL}})"
+            }
+          toTag: ${{ env.RELEASE_SHA }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Create or update Draft Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: v${{ env.RELEASE_VERSION }}
+          name: Release v${{ env.RELEASE_VERSION }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          commit: ${{ env.RELEASE_SHA }}
+          draft: true
+          allowUpdates: true
+          updateOnlyUnreleased: true
