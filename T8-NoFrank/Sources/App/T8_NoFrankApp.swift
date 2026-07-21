@@ -24,9 +24,6 @@ struct T8_NoFrankApp: App {
             case .background:
                 print("앱이 백그라운드로 전환됨")
             case .inactive:
-                if router.currentScreen == .blowAwayStone {
-                    router.navigate(.home)
-                }
                 print("앱이 비활성화됨")
             case .active:
                 print("앱이 포그라운드 상태")
