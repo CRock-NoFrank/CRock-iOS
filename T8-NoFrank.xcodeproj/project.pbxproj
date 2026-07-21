@@ -20,6 +20,13 @@
 			remoteGlobalIDString = 327EF0F12E46B0D400EE7CEA;
 			remoteInfo = CRockWidgetExtension;
 		};
+		A16FCD6B2FD24AA40059D20E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8B7A7A082E44DE5800FDA06F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8B7A7A0F2E44DE5800FDA06F;
+			remoteInfo = "T8-NoFrank";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -42,6 +49,7 @@
 		327EF0F42E46B0D400EE7CEA /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		327EF0F62E46B0D400EE7CEA /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		327EF1762E46BDF000EE7CEA /* CRockWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CRockWidgetExtension.entitlements; sourceTree = "<group>"; };
+		A16FCD672FD24AA40059D20E /* T8-NoFrankTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "T8-NoFrankTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -78,6 +86,11 @@
 			path = "T8-NoFrank";
 			sourceTree = "<group>";
 		};
+		A16FCD682FD24AA40059D20E /* T8-NoFrankTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "T8-NoFrankTests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,6 +104,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8B7A7A0D2E44DE5800FDA06F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A16FCD642FD24AA40059D20E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -117,7 +137,9 @@
 				327EEB352E461E6D00EE7CEA /* T8-NoFrank.app */,
 				327EF0F22E46B0D400EE7CEA /* CRockWidgetExtension.appex */,
 				327EF0F82E46B0D400EE7CEA /* CRockWidget */,
+				A16FCD682FD24AA40059D20E /* T8-NoFrankTests */,
 				327EF0F32E46B0D400EE7CEA /* Frameworks */,
+				A16FCD672FD24AA40059D20E /* T8-NoFrankTests.xctest */,
 			);
 			sourceTree = "<group>";
 		};
@@ -172,6 +194,29 @@
 			productReference = 327EEB352E461E6D00EE7CEA /* T8-NoFrank.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A16FCD662FD24AA40059D20E /* T8-NoFrankTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A16FCD6F2FD24AA40059D20E /* Build configuration list for PBXNativeTarget "T8-NoFrankTests" */;
+			buildPhases = (
+				A16FCD632FD24AA40059D20E /* Sources */,
+				A16FCD642FD24AA40059D20E /* Frameworks */,
+				A16FCD652FD24AA40059D20E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A16FCD6C2FD24AA40059D20E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A16FCD682FD24AA40059D20E /* T8-NoFrankTests */,
+			);
+			name = "T8-NoFrankTests";
+			packageProductDependencies = (
+			);
+			productName = "T8-NoFrankTests";
+			productReference = A16FCD672FD24AA40059D20E /* T8-NoFrankTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -179,7 +224,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1640;
+				LastSwiftUpdateCheck = 2610;
 				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					327EF0F12E46B0D400EE7CEA = {
@@ -187,6 +232,10 @@
 					};
 					8B7A7A0F2E44DE5800FDA06F = {
 						CreatedOnToolsVersion = 16.4;
+					};
+					A16FCD662FD24AA40059D20E = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = 8B7A7A0F2E44DE5800FDA06F;
 					};
 				};
 			};
@@ -207,6 +256,7 @@
 			targets = (
 				8B7A7A0F2E44DE5800FDA06F /* T8-NoFrank */,
 				327EF0F12E46B0D400EE7CEA /* CRockWidgetExtension */,
+				A16FCD662FD24AA40059D20E /* T8-NoFrankTests */,
 			);
 		};
 /* End PBXProject section */
@@ -220,6 +270,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8B7A7A0E2E44DE5800FDA06F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A16FCD652FD24AA40059D20E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -244,7 +301,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "BUILD_NUM=\"${CI_RUN_NUMBER:-}\"\n\nif [ -z \"$BUILD_NUM\" ]; then\n  BUILD_NUM=$(date +%s)\nfi\n\necho \"Setting CFBundleVersion to $BUILD_NUM\"\n\nPLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD_NUM\" \"$PLIST_PATH\" || \\\n/usr/libexec/PlistBuddy -c \"Add :CFBundleVersion string $BUILD_NUM\" \"$PLIST_PATH\".\n";
+			shellScript = "set -e\n\nBUILD_NUM=\"${CI_RUN_NUMBER:-}\"\n\nif [ -z \"$BUILD_NUM\" ]; then\n  BUILD_NUM=$(date +%s)\nfi\n\necho \"Setting CFBundleVersion to $BUILD_NUM\"\n\nPLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD_NUM\" \"$PLIST_PATH\" || \\\n/usr/libexec/PlistBuddy -c \"Add :CFBundleVersion string $BUILD_NUM\" \"$PLIST_PATH\"\n";
 		};
 		32A47D882F2A0E7500EAE5C3 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -280,6 +337,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A16FCD632FD24AA40059D20E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -287,6 +351,11 @@
 			isa = PBXTargetDependency;
 			target = 327EF0F12E46B0D400EE7CEA /* CRockWidgetExtension */;
 			targetProxy = 327EF1062E46B0D600EE7CEA /* PBXContainerItemProxy */;
+		};
+		A16FCD6C2FD24AA40059D20E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8B7A7A0F2E44DE5800FDA06F /* T8-NoFrank */;
+			targetProxy = A16FCD6B2FD24AA40059D20E /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -305,13 +374,16 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CRockWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CRockWidget;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.CRock.T8-NoFrank.CRockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -333,7 +405,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = CRockWidgetExtension.entitlements;
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -341,17 +413,20 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CRockWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CRockWidget;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.CRock.T8-NoFrank.CRockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match Development com.CRock.T8-NoFrank.CRockWidget";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match AppStore com.CRock.T8-NoFrank.CRockWidget";
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -500,6 +575,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "T8-NoFrank/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CRock;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "바람 감지를 위해 마이크 접근이 필요합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -508,11 +584,12 @@
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDarkContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.CRock.T8-NoFrank";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -533,8 +610,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "T8-NoFrank/T8-NoFrank.entitlements";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -543,6 +620,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "T8-NoFrank/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CRock;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "바람 감지를 위해 마이크 접근이 필요합니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -551,15 +629,16 @@
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDarkContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.CRock.T8-NoFrank";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match Development com.CRock.T8-NoFrank";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match AppStore com.CRock.T8-NoFrank";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -567,6 +646,50 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		A16FCD6D2FD24AA40059D20E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8FKM9FB4PH;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "project.T8-NoFrankTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/T8-NoFrank.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/T8-NoFrank";
+			};
+			name = Debug;
+		};
+		A16FCD6E2FD24AA40059D20E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8FKM9FB4PH;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "project.T8-NoFrankTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/T8-NoFrank.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/T8-NoFrank";
 			};
 			name = Release;
 		};
@@ -596,6 +719,15 @@
 			buildConfigurations = (
 				8B7A7A1C2E44DE5800FDA06F /* Debug */,
 				8B7A7A1D2E44DE5800FDA06F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A16FCD6F2FD24AA40059D20E /* Build configuration list for PBXNativeTarget "T8-NoFrankTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A16FCD6D2FD24AA40059D20E /* Debug */,
+				A16FCD6E2FD24AA40059D20E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

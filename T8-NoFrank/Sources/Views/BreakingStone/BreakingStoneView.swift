@@ -11,6 +11,11 @@ struct BreakingStoneView: View {
     @State private var alarmHour: Int = 0
     @State private var alarmMinute: Int = 0
 
+    private var todayWeekday: Weekday? {
+        let raw = Calendar.current.component(.weekday, from: Date())
+        return Weekday(rawValue: raw)
+    }
+
     var body: some View {
         ZStack {
             Image("Home_Background")
@@ -27,7 +32,7 @@ struct BreakingStoneView: View {
             Color.black
                 .opacity(0.7)
                 .edgesIgnoringSafeArea(.all)
-            MovingRockSpriteView(isBreakable: true)
+            MovingRockSpriteView(isBreakable: true, weekday: todayWeekday)
         }
         .onAppear {
             if let hour = UserDefaults(suiteName: AppConstants.appGroupID)?

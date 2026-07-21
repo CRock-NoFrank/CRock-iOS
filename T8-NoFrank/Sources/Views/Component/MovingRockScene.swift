@@ -8,23 +8,37 @@
 import SpriteKit
 import SwiftUI
 
-class RockScene: SKScene {
+class RockScene: SKScene, SKPhysicsContactDelegate {
     var rockPhase: Int = 0 {
         didSet { updateRockTexture(updatePhysics: true) }
     }
     var isRockPain: Bool = false {
         didSet { updateRockTexture(updatePhysics: false) }
     }
+    var weekdayPrefix: String? = nil {
+        didSet { updateRockTexture(updatePhysics: true) }
+    }
 
     private let rockNode = SKSpriteNode()
-    private var currentRockSize: CGSize = .zero
 
     var tiltAcceleration: CGVector = .zero
     var isShaking: Bool = false
 
+    // 벽 슬라이딩 햅틱 (드르르륵 진동)
+    private var lastWallHapticTime: TimeInterval = 0
+    private let wallHapticInterval: TimeInterval = 0.06
+    private let wallHapticGenerator = UIImpactFeedbackGenerator(style: .soft)
+    private var isContactingWall: Bool = false
+
+    // 물리 충돌 카테고리
+    private let rockCategory: UInt32 = 0x1 << 0
+    private let wallCategory: UInt32 = 0x1 << 1
+
     override func didMove(to view: SKView) {
         backgroundColor = .clear
         physicsWorld.gravity = .zero
+        physicsWorld.contactDelegate = self
+        wallHapticGenerator.prepare()
 
         // Setup Rock
         updateRockTexture(updatePhysics: true)
@@ -37,6 +51,8 @@ class RockScene: SKScene {
         physicsBody = SKPhysicsBody(edgeLoopFrom: frame)
         physicsBody?.friction = 0
         physicsBody?.restitution = 0.35
+        physicsBody?.categoryBitMask = wallCategory
+        physicsBody?.contactTestBitMask = rockCategory
 
         if !frame.contains(rockNode.position) {
             rockNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -44,13 +60,17 @@ class RockScene: SKScene {
     }
 
     func updateRockTexture(updatePhysics: Bool) {
-        let imageName = "Rock\(rockPhase)\(isRockPain ? "pain" : "")"
+        let imageName: String
+        if let prefix = weekdayPrefix {
+            imageName = "\(prefix)/\(rockPhase)Stage\(isRockPain ? "_Bright" : "")"
+        } else {
+            imageName = "Rock\(rockPhase)\(isRockPain ? "pain" : "")"
+        }
         let texture = SKTexture(imageNamed: imageName)
         rockNode.texture = texture
 
         if updatePhysics {
             rockNode.size = texture.size()
-            currentRockSize = texture.size()
 
             setupPhysicsBody()
         }
@@ -70,12 +90,10 @@ class RockScene: SKScene {
         body.restitution = 0.35
         body.friction = 0.2
         body.mass = 1.0
+        body.categoryBitMask = rockCategory
+        body.contactTestBitMask = wallCategory
         
         rockNode.physicsBody = body
-    }
-
-    private func getRockSize(phase: Int) -> (CGFloat, CGFloat) {
-        return (0, 0)
     }
 
     func applyShake(vector: CGVector) {
@@ -104,11 +122,45 @@ class RockScene: SKScene {
             let dampingTorque: CGFloat = -body.angularVelocity * 3.0 // 감쇠력
             body.applyTorque(restoreTorque + dampingTorque)
         }
+
+        // 벽에 닿으면서 움직일 때 드르르륵 햅틱
+        checkWallSliding(currentTime)
+    }
+
+    // MARK: - SKPhysicsContactDelegate
+
+    func didBegin(_ contact: SKPhysicsContact) {
+        let masks = contact.bodyA.categoryBitMask | contact.bodyB.categoryBitMask
+        if masks == (rockCategory | wallCategory) {
+            isContactingWall = true
+        }
+    }
+
+    func didEnd(_ contact: SKPhysicsContact) {
+        let masks = contact.bodyA.categoryBitMask | contact.bodyB.categoryBitMask
+        if masks == (rockCategory | wallCategory) {
+            isContactingWall = false
+        }
+    }
+
+    /// 돌이 벽에 닿아 있으면서 속도가 있으면 약한 햅틱 반복 발생
+    private func checkWallSliding(_ currentTime: TimeInterval) {
+        guard isContactingWall else { return }
+        guard let body = rockNode.physicsBody else { return }
+
+        let speed = hypot(body.velocity.dx, body.velocity.dy)
+        guard speed > 5 else { return } // 너무 느리면 무시
+        guard currentTime - lastWallHapticTime >= wallHapticInterval else { return }
+
+        lastWallHapticTime = currentTime
+        let intensity = min(speed / 400.0, 1.0)
+        wallHapticGenerator.impactOccurred(intensity: intensity)
     }
 }
 
 struct MovingRockSpriteView: View {
     @State var isBreakable: Bool
+    var weekday: Weekday? = nil
     @State var isClockEnd: Bool = false
 
     @StateObject private var sceneWrapper = SceneWrapper()
@@ -145,6 +197,7 @@ struct MovingRockSpriteView: View {
             .padding(.top, isBreakable ? 0 : 60)
             .opacity(isSceneReady ? 1 : 0)
             .onAppear {
+                sceneWrapper.scene.weekdayPrefix = weekday?.assetPrefix
                 sceneWrapper.scene.rockPhase = rockPhase
                 sceneWrapper.scene.isRockPain = isRockPain
 
@@ -153,6 +206,9 @@ struct MovingRockSpriteView: View {
                         isSceneReady = true
                     }
                 }
+            }
+            .onChange(of: weekday) { newValue in
+                sceneWrapper.scene.weekdayPrefix = newValue?.assetPrefix
             }
             .onChange(of: rockPhase) { newValue in
                 sceneWrapper.scene.rockPhase = newValue

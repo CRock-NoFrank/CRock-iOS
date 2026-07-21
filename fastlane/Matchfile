@@ -5,13 +5,12 @@ env_path = File.expand_path('../.env.dev', fastlane_dir)
 Dotenv.overload(env_path) if File.exist?(env_path)
 
 git_url(ENV.fetch('MATCH_GIT_URL'))
-git_branch('main')
+git_basic_authorization(ENV['MATCH_GIT_BASIC_AUTHORIZATION']) if ENV['MATCH_GIT_BASIC_AUTHORIZATION']
+git_branch(ENV.fetch('MATCH_GIT_BRANCH', 'main'))
 shallow_clone(true)
 generate_apple_certs(false)
 skip_certificate_matching(true)
 include_all_certificates(false)
-
-type('development')
 
 username(ENV.fetch('APPLE_ID'))
 team_id(ENV.fetch('APPLE_TEAM_ID'))

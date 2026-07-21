@@ -12,7 +12,7 @@ import SwiftUI
 struct CRockWidgetBundle: WidgetBundle {
     var body: some Widget {
         CRockWidget()
-        CRockWidgetControl()
+//        CRockWidgetControl()
         CRockWidgetLiveActivity()
     }
 }

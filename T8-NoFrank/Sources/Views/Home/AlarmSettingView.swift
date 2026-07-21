@@ -5,6 +5,7 @@
 //  Created by 나현흠 on 8/8/25.
 //
 
+import AVFoundation
 import SwiftUI
 
 struct AlarmSettingView: View {
@@ -16,10 +17,27 @@ struct AlarmSettingView: View {
         var labelKey: String { weekday.labelKey }
     }
     let isAlarmEnabled: Bool
-    @Binding var time: Date
-    @Binding var days: [DayItem]
-    @Binding var volume: Double
+    @State private var time: Date
+    @State private var days: [DayItem]
+    @State private var volume: Double
+    @State private var previewPlayer: AVAudioPlayer?
+    @State private var previewStopTask: Task<Void, Never>?
+    private let onSave: (Date, [DayItem], Double) -> Void
     @Environment(\.dismiss) var dismiss
+
+    init(
+        isAlarmEnabled: Bool,
+        initialTime: Date,
+        initialDays: [DayItem],
+        initialVolume: Double,
+        onSave: @escaping (Date, [DayItem], Double) -> Void
+    ) {
+        self.isAlarmEnabled = isAlarmEnabled
+        self.onSave = onSave
+        _time = State(initialValue: initialTime)
+        _days = State(initialValue: initialDays)
+        _volume = State(initialValue: initialVolume)
+    }
     
     private var hasSelectedDays: Bool {
         days.contains { $0.isSelected }
@@ -76,9 +94,12 @@ struct AlarmSettingView: View {
                         }
                         .padding(.horizontal, 30)
 
-                        Slider(value: $volume, in: 0.0...1.0)
+                        Slider(value: $volume, in: 0.0...1.0, step: 0.1)
                             .accentColor(Color(hex: "#BE5F1B"))
                             .padding(.horizontal, 30)
+                            .onChange(of: volume) { newValue in
+                                playVolumePreview(newValue)
+                            }
                     }
                 }
             }
@@ -86,33 +107,96 @@ struct AlarmSettingView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(
-                    action: {
-                        dismiss()
-                    },
-                    label: {
-                        Text(NSLocalizedString("alarm_cancel", comment: "취소"))
-                            .foregroundStyle(Color(hex: "#BE5F1B"))
-                    }
-                )
+                if #available(iOS 26, *) {
+                    Button(
+                        action: {
+                            dismiss()
+                        },
+                        label: {
+                            Image(systemName: "xmark")
+                                .foregroundStyle(Color(hex: "#FFFFFF"))
+                        }
+                    )
+                    .glassEffect()
+                } else {
+                    Button(
+                        action: {
+                            dismiss()
+                        },
+                        label: {
+                            Text("취소")
+                                .foregroundStyle(Color(hex: "#BE5F1B"))
+                        }
+                    )
+                }
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(
-                    action: {
-                        saveAlarmSettings()
-                        dismiss()
-                    },
-                    label: {
-                        Text(NSLocalizedString("alarm_save", comment: "저장"))
-                            .foregroundStyle(
-                                hasSelectedDays 
-                                ? Color(hex: "#BE5F1B") 
-                                : Color.gray
-                            )
-                    }
-                )
-                .disabled(!hasSelectedDays)
+                if #available(iOS 26, *) {
+                    Button(
+                        action: {
+                            saveAlarmSettings()
+                            onSave(time, days, volume)
+                            dismiss()
+                        },
+                        label: {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(
+                                    hasSelectedDays
+                                    ? Color(hex: "#FFFFFF")
+                                    : Color.gray
+                                )
+                        }
+                    )
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(hex: "#BE5F1B"))
+                    .disabled(!hasSelectedDays)
+                } else {
+                    Button(
+                        action: {
+                            saveAlarmSettings()
+                            onSave(time, days, volume)
+                            dismiss()
+                        },
+                        label: {
+                            Text("저장")
+                                .foregroundStyle(
+                                    hasSelectedDays
+                                    ? Color(hex: "#BE5F1B")
+                                    : Color.gray
+                                )
+                        }
+                    )
+                    .disabled(!hasSelectedDays)
+                }
             }
+        }
+        .onDisappear {
+            previewStopTask?.cancel()
+            previewPlayer?.stop()
+        }
+    }
+
+    private func playVolumePreview(_ volume: Double) {
+        previewStopTask?.cancel()
+        previewPlayer?.stop()
+        guard let url = Bundle.main.url(
+            forResource: "NotiSound28sec",
+            withExtension: "caf"
+        ) else { return }
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.volume = Float(volume)
+            player.numberOfLoops = 0
+            player.prepareToPlay()
+            player.play()
+            previewPlayer = player
+            previewStopTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(1500))
+                guard !Task.isCancelled else { return }
+                player.stop()
+            }
+        } catch {
+            print("볼륨 미리듣기 재생 실패: \(error)")
         }
     }
 

@@ -2,3 +2,8 @@
 "alarm_pm" = "PM";
 
 "widget_no_alarm" = "None";
+"widget_alarm_setup_prompt" = "Press the switch to\nset your alarm";
+"widget_alarm_on_message" = "Alarm is on";
+"widget_alarm_remaining_format" = "Alarm rings in\n%d hr %d min";
+"widget_no_alarm_24h_format" = "No alarm in 24 hours\nNext alarm: %@ day";
+"widget_no_alarm_24h" = "No alarm\nin 24 hours";

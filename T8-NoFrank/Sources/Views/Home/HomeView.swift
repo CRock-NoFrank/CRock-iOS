@@ -17,17 +17,47 @@ struct HomeView: View {
         "isAlarmEnabled",
         store: UserDefaults(suiteName: AppConstants.appGroupID)!
     ) private var isEnabled: Bool = false
-    @State private var isAnimating: Bool = false
     @State private var isModal: Bool = false
-    @State private var Time: String = "00:00"
-    @State private var alarmTime = Date()
-    @State private var shouldNavigate: Bool = false
-    @State private var targetScreen: String = ""
+    @State private var alarmTime: Date = {
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = 9
+        comps.minute = 41
+        return Calendar.current.date(from: comps) ?? Date()
+    }()
     @State private var alarmVolume: Double = 1.0
     @State private var alarmDays: [AlarmSettingView.DayItem] =
         Weekday.ordered.map { .init(weekday: $0, isSelected: false) }
 
-    @Environment(\.dismiss) private var dismiss
+    private var nextAlarmWeekday: Weekday? {
+        let selectedWeekdays = Set(
+            alarmDays.compactMap { $0.isSelected ? $0.weekday.rawValue : nil }
+        )
+        guard !selectedWeekdays.isEmpty else { return nil }
+
+        let calendar = Calendar.current
+        let now = Date()
+        let comps = calendar.dateComponents([.hour, .minute], from: alarmTime)
+        let alarmHour = comps.hour ?? 0
+        let alarmMinute = comps.minute ?? 0
+
+        for dayOffset in 0..<7 {
+            let checkDate = calendar.date(byAdding: .day, value: dayOffset, to: now)!
+            let weekday = calendar.component(.weekday, from: checkDate)
+
+            if selectedWeekdays.contains(weekday) {
+                var candidate = calendar.dateComponents([.year, .month, .day], from: checkDate)
+                candidate.hour = alarmHour
+                candidate.minute = alarmMinute
+                candidate.second = 0
+
+                if let candidateDate = calendar.date(from: candidate),
+                   candidateDate > now {
+                    return Weekday(rawValue: weekday)
+                }
+            }
+        }
+        return nil
+    }
 
     var body: some View {
         ZStack {
@@ -42,7 +72,7 @@ struct HomeView: View {
                 .edgesIgnoringSafeArea(.all)
 
             if isEnabled {
-                MovingRockSpriteView(isBreakable: false)
+                MovingRockSpriteView(isBreakable: false, weekday: nextAlarmWeekday)
                 Image("RotationGrass")
                     .resizable()
                     .scaledToFill()
@@ -80,17 +110,28 @@ struct HomeView: View {
         .ignoresSafeArea(.all)
         .onAppear {
             loadAlarm()
-            // 앱 시작 시 알람 및 마이크 권한 함께 요청
             NotificationService.requestAuthorization()
-            NotificationService.requestMicrophonePermission()
+            // iOS 26+: AlarmKit 권한 요청 (시스템 알람 등록 위해 필수)
+            if #available(iOS 26.0, *) {
+                Task {
+                    _ = await AlarmKitManager.shared.requestAuthorization()
+                }
+            }
         }
         .sheet(isPresented: $isModal) {
             NavigationStack {
                 AlarmSettingView(
                     isAlarmEnabled: isEnabled,
-                    time: $alarmTime,
-                    days: $alarmDays,
-                    volume: $alarmVolume
+                    initialTime: alarmTime,
+                    initialDays: alarmDays,
+                    initialVolume: alarmVolume,
+                    onSave: { newTime, newDays, newVolume in
+                        alarmTime = newTime
+                        alarmDays = newDays
+                        alarmVolume = newVolume
+                        persistAlarm()
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
                 )
                 .navigationTitle(NSLocalizedString("alarm_edit_title", comment: "알람 편집"))
                 .navigationBarTitleDisplayMode(.inline)
@@ -100,12 +141,6 @@ struct HomeView: View {
             }
             .presentationDetents([.fraction(0.7)])
             .presentationDragIndicator(.visible)
-        }
-        .onChange(of: isModal) { newValue in
-            if newValue == false {
-                persistAlarm()
-            }
-            WidgetCenter.shared.reloadAllTimelines()
         }
         .onChange(of: isEnabled) { newValue in
             UserDefaults(suiteName: AppConstants.appGroupID)!.set(
@@ -167,28 +202,6 @@ struct HomeView: View {
             hour -= 12
         }
         return String(format: "%02d:%02d", hour, minute)
-    }
-    private func checkNotificationNavigation() {
-        if UserDefaults(suiteName: AppConstants.appGroupID)!.bool(
-            forKey: "shouldNavigate"
-        ) {
-            shouldNavigate = true
-            targetScreen =
-                UserDefaults(suiteName: AppConstants.appGroupID)!.string(
-                    forKey: "targetScreen"
-                ) ?? ""
-
-            // 신호 초기화
-            UserDefaults(suiteName: AppConstants.appGroupID)!.set(
-                false,
-                forKey: "shouldNavigate"
-            )
-            UserDefaults(suiteName: AppConstants.appGroupID)!.removeObject(
-                forKey: "targetScreen"
-            )
-
-            print("노티피케이션으로 \(targetScreen) 화면으로 이동")
-        }
     }
 
     private func persistAlarm() {
@@ -305,7 +318,8 @@ struct HomeView: View {
         }
 
         // 앱 시작 시 백그라운드 오디오 복원
-        if isEnabled {
+        // 알람이 울리는 중이면 silent sound 재시작하지 않음 (T8_NoFrankApp에서 breakingStone으로 이동)
+        if isEnabled && !BackgroundAudioPlayer.isAlarmRingingPersisted() {
             let comps = Calendar.current.dateComponents([.hour, .minute], from: alarmTime)
             let hour = comps.hour ?? 0
             let minute = comps.minute ?? 0
