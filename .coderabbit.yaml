@@ -1,0 +1,60 @@
+# CodeRabbit configuration
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+
+language: "ko-KR"
+
+tone_instructions: >
+  이 프로젝트는 Swift/iOS 앱(CRock-iOS)입니다. Apple Developer Academy 스위프트 스타일 가이드
+  (https://github.com/DeveloperAcademy-POSTECH/swift-style-guide)를 기준으로 리뷰해 주세요.
+  리뷰 코멘트는 한국어로 간결하게 작성하고, 코드 예시가 필요할 때만 Swift 코드 블록을 사용해 주세요.
+
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "develop"
+      - "main"
+
+  path_filters:
+    - "!**/*.xcassets/**"
+    - "!**/*.lproj/**"
+    - "!**/*.xcworkspace/**"
+    - "!**/*.xcodeproj/**"
+    - "!**/Pods/**"
+    - "!**/DerivedData/**"
+    - "!**/*.pbxproj"
+    - "!**/*.entitlements"
+    - "!fastlane/**"
+    - "!**/*.lock"
+    - "!**/*.md"
+
+  path_instructions:
+    - path: "T8-NoFrank/Sources/**/*.swift"
+      instructions: >
+        SwiftUI/UIKit 앱 소스 코드입니다. 강제 언래핑(!), 강제 캐스팅(as!), 강제 try! 사용을
+        지적하고 더 안전한 대안을 제안해 주세요. 메모리 누수 가능성이 있는 클로저 캡처
+        (self 강한 참조 등)를 주의 깊게 확인해 주세요.
+    - path: "T8-NoFrankTests/**/*.swift"
+      instructions: >
+        테스트 코드입니다. 테스트 케이스가 충분한 엣지 케이스를 커버하는지, given-when-then
+        구조가 명확한지 확인해 주세요.
+    - path: "CRockWidget/**/*.swift"
+      instructions: >
+        WidgetKit 확장 코드입니다. 타임라인 갱신 정책과 메모리/성능 제약(위젯 익스텐션은
+        메모리 제한이 엄격함)을 고려해 리뷰해 주세요.
+
+  tools:
+    swiftlint:
+      enabled: true
+
+chat:
+  auto_reply: true
