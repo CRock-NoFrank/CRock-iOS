@@ -1,5 +1,5 @@
 # CodeRabbit configuration
-# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+# https://docs.coderabbit.ai/getting-started/yaml-configuration
 
 language: "ko-KR"
 
