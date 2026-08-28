@@ -38,15 +38,6 @@ class BackgroundAudioPlayer: ObservableObject {
     private static let isAlarmRingingKey = "isAlarmRinging"
     private static let alarmRingingTimestampKey = "alarmRingingTimestamp"
     private static let originalVolumeKey = "originalSystemVolume"
-    private static let originalRingerVolumeKey = "originalRingerVolume"
-
-    private var originalRingerVolume: Float = 1.0
-    // Burst 노티 — UNCalendarNotificationTrigger로 매 분 0/2/4/.../58초마다 발동.
-    // 시계 기반이라 알람 fire/강제 종료 시점 무관하게 ≤2초 안에 첫 노티 + 영원히 균일 반복.
-    private static let burstCount = 30
-    private static let burstIntervalSec: TimeInterval = 2
-    private static let burstPrefix = "ALARM_BURST_"
-    private static let alarmSoundName = "stone2_1.caf"
     private static let alarmRingingMaxDurationSec: TimeInterval = 1800  // 30분 영속화 만료
 
     // MARK: - Dependencies (테스트에서 교체 가능)
@@ -54,15 +45,22 @@ class BackgroundAudioPlayer: ObservableObject {
     /// 테스트는 SpyNotificationScheduler를 주입.
     private let scheduler: NotificationScheduling
 
+    /// 버전별 "알람 깨우기 방식". BackgroundAudioPlayer는 이 역할에만 의존하고
+    /// 실제 iOS 18 / iOS 26 여부는 모른다. (판별은 AlarmPlatformFactory가 한다)
+    private let alarmPlatform: AlarmPlatform
+
     /// 운영 빌드는 `.shared`만 사용. 테스트 빌드는 setupAudio=false로 오디오 세션 부작용 없이 생성한다.
     /// - Parameters:
     ///   - scheduler: 노티 스케줄링 의존성 (기본: 실제 UNUserNotificationCenter 호출)
+    ///   - alarmPlatform: 알람 깨우기 방식 (기본: 현재 OS에 맞는 구현체를 Factory가 생성)
     ///   - setupAudio: AVAudioSession/인터럽트 옵저버 셋업 여부 (테스트는 false 권장)
     init(
         scheduler: NotificationScheduling = SystemNotificationScheduler(),
+        alarmPlatform: AlarmPlatform? = nil,
         setupAudio: Bool = true
     ) {
         self.scheduler = scheduler
+        self.alarmPlatform = alarmPlatform ?? AlarmPlatformFactory.make(scheduler: scheduler)
         if setupAudio {
             setupAudioSession()
             setupInterruptionObserver()
@@ -186,11 +184,8 @@ class BackgroundAudioPlayer: ObservableObject {
         // 앱 재시작 시 이전 종료 경고 노티 즉시 취소
         scheduler.removePending(identifiers: ["appTerminationWarning"])
 
-        // 이전 사이클의 잔존 burst 노티 정리.
-        // UNCalendar(repeats:true) burst는 명시 cancel 전까지 펜딩 풀에 영구 잔존하므로,
-        // 직전 알람 fire 후 강제 종료된 경우 좀비 30개가 weeklyBurst와 합쳐져 64개 한도를
-        // 초과해 termination warning 등록이 거부되는 문제를 사전 차단.
-        cancelAlarmBurst()
+        // 직전 사이클에서 남은 예약 잔여물 정리 (iOS 18은 좀비 burst 노티 제거).
+        alarmPlatform.clearStaleAlarms()
 
         playSilentSound()
 
@@ -203,16 +198,9 @@ class BackgroundAudioPlayer: ObservableObject {
         isPlaying = true
         print("🔇 Silent sound started. Next alarm: \(alarmTime?.formatted() ?? "nil")")
 
-        // iOS 26+: AlarmKit weekly alarm 등록. 시스템이 자체 ringing 처리하므로 burst 노티 불필요.
+        // 알람 등록은 플랫폼에 위임. (iOS 26은 AlarmKit weekly alarm 등록, iOS 18은 없음)
         // Silent audio loop은 유지 — 알람 시간에 시스템 볼륨 오버라이드 위해 앱을 살아있게 함.
-        if #available(iOS 26.0, *) {
-            Task {
-                await AlarmKitManager.shared.scheduleMainAlarm(
-                    hour: hour, minute: minute, weekdays: weekdays
-                )
-                AlarmKitManager.shared.startObserving()
-            }
-        }
+        alarmPlatform.scheduleAlarm(hour: hour, minute: minute, weekdays: weekdays)
     }
 
     // MARK: - Play Silent Sound
@@ -253,19 +241,9 @@ class BackgroundAudioPlayer: ObservableObject {
         )
         print("💾 Original system volume: \(Int(originalSystemVolume * 100))%")
 
-        // iOS 26+: AlarmKit은 Ringtone 채널로 재생 → 시스템 벨소리 볼륨을 따름.
-        // RingerVolumeController (private AVSystemController API)로 Ringtone 볼륨을 직접 set해서
-        // AlarmKit 사운드가 유저 설정 볼륨으로 울리게 함. (alerting은 stop하지 않음)
-        if #available(iOS 26.0, *) {
-            if let currentRinger = RingerVolumeController.shared.getVolume(for: .ringtone) {
-                originalRingerVolume = currentRinger
-                UserDefaults(suiteName: Self.appGroupID)?
-                    .set(Double(currentRinger), forKey: Self.originalRingerVolumeKey)
-                print("💾 Original Ringtone volume: \(Int(currentRinger * 100))%")
-            }
-            let ok = RingerVolumeController.shared.setVolume(targetVolume, for: .ringtone)
-            print("📢 Ringtone volume set to \(Int(targetVolume * 100))% — success=\(ok)")
-        }
+        // 알람용 볼륨 채널 진입은 플랫폼에 위임.
+        // (iOS 26은 Ringtone 채널 볼륨을 유저 설정값으로 저장·적용, iOS 18은 미디어 채널만 써서 없음)
+        alarmPlatform.applyAlarmVolume(target: targetVolume)
 
         // AlarmKit이 audio session 우선권을 빼앗았을 가능성 → 명시적으로 .playback (no mix) 카테고리로
         // 재설정 + reactivate해서 우리 in-app audio가 미디어 채널로 큰 소리 낼 수 있게 함.
@@ -320,39 +298,11 @@ class BackgroundAudioPlayer: ObservableObject {
         // 2초마다 시스템 볼륨을 지정 볼륨으로 복원 (사용자가 볼륨 내리는 것 방지)
         startVolumeRestorationTimer(targetVolume: targetVolume)
 
-        // iOS 26+: AlarmKit이 시스템 알림/burst 역할을 대체. 로컬 노티 + UNCalendar burst 모두 생략.
-        // AlarmKit alerting은 계속 ring (Ringtone 채널 볼륨은 위에서 유저 설정값으로 강제 set됨).
-        // iOS 26 미만: 기존대로 로컬 노티 1개 + burst 노티 30개 예약.
-        if #available(iOS 26.0, *) {
-            AlarmKitManager.markAlarmFired()
-        } else {
-            sendLocalNotification()
-            scheduleAlarmBurst()
-        }
+        // 울림 순간 처리는 플랫폼에 위임.
+        // (iOS 26은 AlarmKit이 알림/사운드 대체 → 발동 기록만, iOS 18은 로컬 노티 1개 + burst 30개)
+        alarmPlatform.handleAlarmFired()
 
         print("🔔 Alarm sound started (target volume: \(Int(targetVolume * 100))%)")
-    }
-
-    // MARK: - Send Local Notification
-    private func sendLocalNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "CRock"
-        content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
-        content.userInfo = ["targetScreen": "BreakingStone"]
-        content.sound = UNNotificationSound(named: .init("NotiSound28sec.caf"))
-
-        if #available(iOS 15.0, *) {
-            content.interruptionLevel = .timeSensitive
-        }
-
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: "alarmNotification_\(Date().timeIntervalSince1970)",
-            content: content,
-            trigger: trigger
-        )
-
-        scheduler.add(request)
     }
 
     // MARK: - Alarm Ringing Persistence
@@ -364,7 +314,6 @@ class BackgroundAudioPlayer: ObservableObject {
         } else {
             ud?.removeObject(forKey: Self.alarmRingingTimestampKey)
             ud?.removeObject(forKey: Self.originalVolumeKey)
-            ud?.removeObject(forKey: Self.originalRingerVolumeKey)
         }
     }
 
@@ -399,7 +348,6 @@ class BackgroundAudioPlayer: ObservableObject {
         ud?.set(false, forKey: isAlarmRingingKey)
         ud?.removeObject(forKey: alarmRingingTimestampKey)
         ud?.removeObject(forKey: originalVolumeKey)
-        ud?.removeObject(forKey: originalRingerVolumeKey)
     }
 
     /// 영속화된 원래 시스템 볼륨 복원 (미디어 + Ringtone 둘 다).
@@ -411,65 +359,8 @@ class BackgroundAudioPlayer: ObservableObject {
         } else {
             originalSystemVolume = getCurrentSystemVolume()
         }
-        if let savedRinger = UserDefaults(suiteName: Self.appGroupID)?.double(forKey: Self.originalRingerVolumeKey),
-           savedRinger > 0 {
-            originalRingerVolume = Float(savedRinger)
-        } else if #available(iOS 26.0, *),
-                  let currentRinger = RingerVolumeController.shared.getVolume(for: .ringtone) {
-            originalRingerVolume = currentRinger
-        }
-    }
-
-    // MARK: - Alarm Burst Notifications (강제 종료 대비)
-    /// internal: 테스트에서 직접 호출해 노티 예약 패턴(개수/트리거/ID)을 검증한다.
-    /// UNCalendarNotificationTrigger로 매 분 0, 2, 4, ..., 58초에 발동되는 노티 30개 등록.
-    /// 시계 기반이라 알람 fire/강제 종료 시점 무관하게 ≤2초 안에 첫 노티 + 영원히 매 2초 균일 반복.
-    /// 앱 살아있는 동안에도 발동되지만 willPresent에서 prefix 필터링으로 화면/사운드 차단됨.
-    func scheduleAlarmBurst() {
-        // 중복 방지 — 기존 burst 제거 후 새로 등록 (scheduler 경유로 테스트에서 Spy 검증 가능)
-        let ids = (0..<Self.burstCount).map { "\(Self.burstPrefix)\($0)" }
-        scheduler.removePending(identifiers: ids)
-
-        for i in 0..<Self.burstCount {
-            let content = UNMutableNotificationContent()
-            content.title = "CRock"
-            content.body = NSLocalizedString("alarm_notification_body", comment: "돌 깨러가기 🪨")
-            content.userInfo = ["targetScreen": "BreakingStone"]
-            content.sound = UNNotificationSound(named: .init(Self.alarmSoundName))
-
-            if #available(iOS 15.0, *) {
-                content.interruptionLevel = .timeSensitive
-            }
-
-            // 매 분의 0, 2, 4, ..., 58초에 발동 (30개 × 2초 = 60초 사이클)
-            var components = DateComponents()
-            components.second = Int(Double(i) * Self.burstIntervalSec)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-
-            let request = UNNotificationRequest(
-                identifier: "\(Self.burstPrefix)\(i)",
-                content: content,
-                trigger: trigger
-            )
-            scheduler.add(request)
-        }
-        print("📬 Alarm burst scheduled: \(Self.burstCount) calendar notifications (every \(Int(Self.burstIntervalSec))s)")
-    }
-
-    /// burst 노티 cancel + 알림센터 정리. 돌 깨기 성공 시 호출.
-    /// `appTerminationWarning` 등 다른 노티는 보존됨 (식별자 prefix로 정확히 분리).
-    func cancelAlarmBurst() {
-        let ids = (0..<Self.burstCount).map { "\(Self.burstPrefix)\($0)" }
-        scheduler.removePending(identifiers: ids)
-        scheduler.removeDelivered(identifiers: ids)
-        print("🗑️ Alarm burst cancelled (\(ids.count))")
-    }
-
-    /// 앱 재진입 시 알람 모드 비활성인데 burst 노티가 살아있는 좀비 상태 정리.
-    /// repeats:true는 명시적 cancel 전까지 영원히 발동되므로 안전장치 필수.
-    func cleanupZombieBurstIfNotAlarming() {
-        guard !isAlarmMode else { return }
-        cancelAlarmBurst()
+        // 알람 채널(Ringtone) 볼륨 로드는 플랫폼에 위임. (iOS 18은 없음)
+        alarmPlatform.loadPersistedAlarmVolume()
     }
 
     // MARK: - Volume Restoration Timer
@@ -480,9 +371,7 @@ class BackgroundAudioPlayer: ObservableObject {
         volumeRestorationTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
             guard let self = self, self.isAlarmMode else { return }
             self.setSystemVolume(targetVolume)
-            if #available(iOS 26.0, *) {
-                _ = RingerVolumeController.shared.setVolume(targetVolume, for: .ringtone)
-            }
+            self.alarmPlatform.reinforceAlarmVolume(target: targetVolume)
         }
     }
 
@@ -538,8 +427,8 @@ class BackgroundAudioPlayer: ObservableObject {
 
         // 알람 울리는 중이 아닐 때만 종료 경고 노티 예약
         if !isAlarmMode {
-            // iOS 26+는 AlarmKit이 강제 종료 후에도 시스템 레벨에서 알람을 울리므로 경고 불필요
-            if #unavailable(iOS 26.0) {
+            // iOS 26+는 AlarmKit이 강제 종료 후에도 시스템 레벨에서 울리므로 경고 불필요 (플랫폼이 판단)
+            if alarmPlatform.needsTerminationWarning {
                 scheduleTerminationWarning()
             }
         } else {
@@ -605,12 +494,9 @@ class BackgroundAudioPlayer: ObservableObject {
         // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 
-        // 시스템 미디어 볼륨 + Ringtone 볼륨 모두 원래대로 복원
+        // 시스템 미디어 볼륨 복원 + 알람 채널(Ringtone) 볼륨 복원은 플랫폼에 위임
         setSystemVolume(originalSystemVolume)
-        if #available(iOS 26.0, *) {
-            _ = RingerVolumeController.shared.setVolume(originalRingerVolume, for: .ringtone)
-            print("🔄 Ringtone volume restored to: \(Int(originalRingerVolume * 100))%")
-        }
+        alarmPlatform.restoreAlarmVolume()
         print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
 
         // 알람용 fresh AVAudioPlayer 정지 후 silent loop을 재구성 — audio session도
@@ -621,19 +507,10 @@ class BackgroundAudioPlayer: ObservableObject {
         playSilentSound()
         isAlarmMode = false
 
-        // 영속화 상태 초기화 + burst 취소
+        // 영속화 상태 초기화 + 지금 울리는 알람만 정지 (주간 반복 예약은 유지)
+        // iOS 18은 burst 취소, iOS 26은 AlarmKit alerting/backup 정지 — 플랫폼이 처리.
         persistAlarmRinging(false)
-        cancelAlarmBurst()
-
-        // iOS 26+: alerting 중인 AlarmKit 알람 + backup 알람 모두 정지.
-        // weekly recurrence는 다음 주에 자동 재예약되므로 main alarm 자체 cancel은 하지 않음.
-        if #available(iOS 26.0, *) {
-            Task {
-                await AlarmKitManager.shared.stopAlertingAlarms()
-            }
-            AlarmKitManager.shared.cancelBackupAlarm()
-            AlarmKitManager.clearAlarmFiredMark()
-        }
+        alarmPlatform.stopAlerting()
 
         // 다음 알람 시간 계산
         if let alarmTime = alarmTime {
@@ -649,14 +526,11 @@ class BackgroundAudioPlayer: ObservableObject {
         // 볼륨 복원 타이머 중지
         stopVolumeRestorationTimer()
 
-        // 알람 모드였다면 시스템 미디어 + Ringtone 볼륨 모두 복원
+        // 알람 모드였다면 시스템 미디어 볼륨 + 알람 채널(Ringtone) 볼륨 모두 복원
         if isAlarmMode {
             setSystemVolume(originalSystemVolume)
             print("🔄 System volume restored to: \(Int(originalSystemVolume * 100))%")
-            if #available(iOS 26.0, *) {
-                _ = RingerVolumeController.shared.setVolume(originalRingerVolume, for: .ringtone)
-                print("🔄 Ringtone volume restored to: \(Int(originalRingerVolume * 100))%")
-            }
+            alarmPlatform.restoreAlarmVolume()
         }
 
         audioPlayer?.stop()
@@ -667,19 +541,13 @@ class BackgroundAudioPlayer: ObservableObject {
         isAlarmMode = false
         alarmTime = nil
 
-        // 영속화 상태 초기화 + burst 취소
+        // 영속화 상태 초기화 + 알람 자체 취소 (유저가 알람을 off)
+        // iOS 18은 burst 취소, iOS 26은 AlarmKit 알람 전체 취소 + 관찰 종료 — 플랫폼이 처리.
         persistAlarmRinging(false)
-        cancelAlarmBurst()
+        alarmPlatform.cancelAll()
 
         // 알람 끄면 종료 경고 노티도 취소
         scheduler.removePending(identifiers: ["appTerminationWarning"])
-
-        // iOS 26+: AlarmKit 알람 전체 취소 (유저가 알람 자체를 off 했을 때만 호출되므로 main도 cancel)
-        if #available(iOS 26.0, *) {
-            AlarmKitManager.shared.cancelAllAlarms()
-            AlarmKitManager.shared.stopObserving()
-            AlarmKitManager.clearAlarmFiredMark()
-        }
 
         print("🛑 Background audio player stopped")
     }

@@ -9,11 +9,14 @@
 //     매 분 0, 2, 4, ..., 58초에 발동되는 노티 30개를 repeats:true로 등록 → 시계 기반 무한 반복.
 //     (기존 UNTimeInterval 60개×30초 설계는 폐기됨)
 //
+//  ⚠️ #139 이후: burst/로컬 노티 로직은 IOS18AlarmPlatform으로 이동했다.
+//     따라서 burst 검증은 IOS18AlarmPlatform을, 종료 경고/대기 진입은 BackgroundAudioPlayer를 대상으로 한다.
+//
 //  검증 대상:
-//   1) startSilentSound          — 알람 대기 진입 시 이전 종료 경고 노티 정리
-//   2) scheduleTerminationWarning — Dead Man's Switch 1개 등록 (3초 UNTimeInterval)
-//   3) scheduleAlarmBurst         — burst 30개 / second 0,2,…,58 / repeats:true / ID 패턴
-//   4) cancelAlarmBurst           — 30개 pending + delivered 모두 제거
+//   1) startSilentSound          — 알람 대기 진입 시 이전 종료 경고 노티 정리 (BackgroundAudioPlayer)
+//   2) scheduleTerminationWarning — Dead Man's Switch 1개 등록 (3초 UNTimeInterval) (BackgroundAudioPlayer)
+//   3) scheduleAlarmBurst         — burst 30개 / second 0,2,…,58 / repeats:true / ID 패턴 (IOS18AlarmPlatform)
+//   4) cancelAlarmBurst           — 30개 pending + delivered 모두 제거 (IOS18AlarmPlatform)
 //   5) 회귀: burst + termination ≤ iOS 펜딩 64개 한도
 //
 
@@ -25,16 +28,25 @@ import UserNotifications
 @Suite("BackgroundAudioPlayer 노티 스케줄링 (Spy 기반 화이트박스)")
 struct BackgroundAudioPlayerNotificationTests {
 
-    /// #112 burst 설계 상수 (BackgroundAudioPlayer 내부 private 상수와 동일해야 함)
+    /// #112 burst 설계 상수 (IOS18AlarmPlatform 내부 private 상수와 동일해야 함)
     private let burstCount = 30
     private let burstIntervalSec = 2
     private let burstPrefix = "ALARM_BURST_"
 
-    /// 테스트 SUT 생성 헬퍼. 오디오 세션 셋업은 건너뛴다(부작용 차단).
+    /// BackgroundAudioPlayer SUT 생성 헬퍼. 오디오 세션 셋업은 건너뛴다(부작용 차단).
+    /// 알람 플랫폼은 iOS 18 구현체를 같은 spy로 주입해 노티 경로를 결정적으로 관찰한다.
     private func makeSUT() -> (BackgroundAudioPlayer, SpyNotificationScheduler) {
         let spy = SpyNotificationScheduler()
-        let sut = BackgroundAudioPlayer(scheduler: spy, setupAudio: false)
+        let platform = IOS18AlarmPlatform(scheduler: spy)
+        let sut = BackgroundAudioPlayer(scheduler: spy, alarmPlatform: platform, setupAudio: false)
         return (sut, spy)
+    }
+
+    /// burst 검증용 iOS 18 플랫폼 SUT 생성 헬퍼.
+    private func makePlatform() -> (IOS18AlarmPlatform, SpyNotificationScheduler) {
+        let spy = SpyNotificationScheduler()
+        let platform = IOS18AlarmPlatform(scheduler: spy)
+        return (platform, spy)
     }
 
     /// burst 요청들을 ID 인덱스(0,1,2…) 오름차순으로 정렬
@@ -79,9 +91,9 @@ struct BackgroundAudioPlayerNotificationTests {
 
     @Test("scheduleAlarmBurst → ALARM_BURST_0~29 정확히 30개 등록")
     func scheduleAlarmBurst_schedulesExactly30() {
-        let (sut, spy) = makeSUT()
+        let (platform, spy) = makePlatform()
 
-        sut.scheduleAlarmBurst()
+        platform.scheduleAlarmBurst()
 
         let bursts = spy.addedRequests(withPrefix: burstPrefix)
         #expect(bursts.count == burstCount)
@@ -94,9 +106,9 @@ struct BackgroundAudioPlayerNotificationTests {
 
     @Test("scheduleAlarmBurst → second 0,2,4…58 + repeats:true (시계 기반 무한 반복)")
     func scheduleAlarmBurst_calendarSecondsAndRepeats() {
-        let (sut, spy) = makeSUT()
+        let (platform, spy) = makePlatform()
 
-        sut.scheduleAlarmBurst()
+        platform.scheduleAlarmBurst()
 
         let bursts = sortedBursts(spy)
 
@@ -114,9 +126,9 @@ struct BackgroundAudioPlayerNotificationTests {
 
     @Test("scheduleAlarmBurst → 등록 전 기존 burst 30개 ID를 pending에서 제거 (중복 방지)")
     func scheduleAlarmBurst_removesExistingBurstFirst() {
-        let (sut, spy) = makeSUT()
+        let (platform, spy) = makePlatform()
 
-        sut.scheduleAlarmBurst()
+        platform.scheduleAlarmBurst()
 
         // #112: 등록 직전 scheduler.removePending(ids)로 좀비 burst 제거
         let expectedIDs = (0..<burstCount).map { "\(burstPrefix)\($0)" }
@@ -129,9 +141,9 @@ struct BackgroundAudioPlayerNotificationTests {
 
     @Test("cancelAlarmBurst → 30개 ID에 대해 pending + delivered 모두 제거")
     func cancelAlarmBurst_removesPendingAndDelivered() {
-        let (sut, spy) = makeSUT()
+        let (platform, spy) = makePlatform()
 
-        sut.cancelAlarmBurst()
+        platform.cancelAlarmBurst()
 
         let expectedIDs = (0..<burstCount).map { "\(burstPrefix)\($0)" }
         #expect(spy.removedPendingIDs == expectedIDs)
@@ -142,10 +154,13 @@ struct BackgroundAudioPlayerNotificationTests {
 
     @Test("burst 30개 + 종료 경고 1개 = 31 ≤ iOS 한도 64")
     func totalPendingStaysUnder64Limit() {
-        let (sut, spy) = makeSUT()
+        // burst(iOS 18 플랫폼)와 종료 경고(BackgroundAudioPlayer)가 같은 스케줄러를 공유하도록 구성
+        let spy = SpyNotificationScheduler()
+        let platform = IOS18AlarmPlatform(scheduler: spy)
+        let player = BackgroundAudioPlayer(scheduler: spy, alarmPlatform: platform, setupAudio: false)
 
-        sut.scheduleAlarmBurst()
-        sut.scheduleTerminationWarning()
+        platform.scheduleAlarmBurst()
+        player.scheduleTerminationWarning()
 
         // 같은 시점에 동시 등록될 수 있는 노티 총 개수
         let totalAdded = spy.addedRequests.count
