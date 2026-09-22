@@ -35,14 +35,23 @@ jobs:
           echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Publish Draft Release
-        uses: ncipollo/release-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: v${{ env.RELEASE_VERSION }}
-          draft: false
-          allowUpdates: true
-          updateOnlyUnreleased: true
-          # 기존 draft의 name/body를 그대로 유지하기 위해 omit 옵션 사용
-          omitName: true
-          omitBody: true
-          omitPrereleaseDuringUpdate: true
+        run: |
+          TAG="v${{ env.RELEASE_VERSION }}"
+          echo "Publishing release for tag: $TAG"
+
+          # Draft 릴리즈 목록 중 해당 태그를 가진 릴리즈 ID 조회
+          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
+            --jq ".[] | select(.tag_name == \"$TAG\" and .draft == true) | .id" | head -n 1)
+
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            echo "Found draft release (ID: $RELEASE_ID). Publishing..."
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" -F draft=false
+          elif gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG found. Publishing via gh release edit..."
+            gh release edit "$TAG" --draft=false
+          else
+            echo "::error::Publish할 Draft Release(태그: $TAG)를 찾을 수 없습니다."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
