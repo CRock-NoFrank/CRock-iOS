@@ -2,7 +2,7 @@ name: Publish Release on Merge
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 on:
   pull_request:
@@ -11,8 +11,8 @@ on:
 
 jobs:
   publish-release:
-    # PR이 머지되었고, 타이틀에 'Release'가 포함된 경우에만 실행
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'Release')
+    # PR이 머지되었고, develop -> main PR이며, 타이틀에 'Release'가 포함된 경우에만 실행
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'develop' && contains(github.event.pull_request.title, 'Release')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -35,14 +35,62 @@ jobs:
           echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Publish Draft Release
-        uses: ncipollo/release-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: v${{ env.RELEASE_VERSION }}
-          draft: false
-          allowUpdates: true
-          updateOnlyUnreleased: true
-          # 기존 draft의 name/body를 그대로 유지하기 위해 omit 옵션 사용
-          omitName: true
-          omitBody: true
-          omitPrereleaseDuringUpdate: true
+        run: |
+          TAG="v${{ env.RELEASE_VERSION }}"
+          echo "Publishing release for tag: $TAG"
+
+          # Draft 릴리즈 목록 중 해당 태그를 가진 릴리즈 ID 조회
+          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
+            --jq ".[] | select(.tag_name == \"$TAG\" and .draft == true) | .id" | head -n 1)
+
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            echo "Found draft release (ID: $RELEASE_ID). Publishing..."
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" -F draft=false
+          elif gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG found. Publishing via gh release edit..."
+            gh release edit "$TAG" --draft=false
+          else
+            echo "::error::Publish할 Draft Release(태그: $TAG)를 찾을 수 없습니다."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Bump Marketing Version PR on develop
+        run: |
+          CURRENT_VERSION="${{ env.RELEASE_VERSION }}"
+          MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+          NEXT_VERSION="$MAJOR.$((MINOR + 1))"
+          BRANCH_NAME="chore/bump-version-$NEXT_VERSION"
+
+          echo "Bumping marketing version: $CURRENT_VERSION -> $NEXT_VERSION"
+
+          # develop 브랜치 최신 상태 가져오기
+          git fetch origin develop
+          git checkout -b "$BRANCH_NAME" origin/develop
+
+          # project.pbxproj 내 MARKETING_VERSION 치환
+          python3 -c "p='T8-NoFrank.xcodeproj/project.pbxproj'; s=open(p).read().replace('MARKETING_VERSION = $CURRENT_VERSION;', 'MARKETING_VERSION = $NEXT_VERSION;'); open(p, 'w').write(s)"
+
+          # 커밋 및 푸시
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: bump marketing version $CURRENT_VERSION -> $NEXT_VERSION"
+          git push origin "$BRANCH_NAME" --force
+
+          # develop 브랜치로 향하는 동일 브랜치의 열린 PR이 있는지 사전 확인
+          EXISTING_PR=$(gh pr list --base develop --head "$BRANCH_NAME" --state open --json number --jq '.[0].number')
+
+          if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+            echo "PR already exists (#$EXISTING_PR) for $BRANCH_NAME. Skipping creation."
+          else
+            echo "Creating PR for $BRANCH_NAME..."
+            gh pr create \
+              --base develop \
+              --head "$BRANCH_NAME" \
+              --title "🍀 Chore: bump marketing version to $NEXT_VERSION" \
+              --body "배포(v$CURRENT_VERSION) 머지 완료에 따라 develop 브랜치의 마케팅 버전을 $NEXT_VERSION(으)로 자동 업데이트합니다."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
