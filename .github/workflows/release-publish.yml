@@ -11,8 +11,8 @@ on:
 
 jobs:
   publish-release:
-    # PR이 머지되었고, 타이틀에 'Release'가 포함된 경우에만 실행
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.title, 'Release')
+    # PR이 머지되었고, develop -> main PR이며, 타이틀에 'Release'가 포함된 경우에만 실행
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'develop' && contains(github.event.pull_request.title, 'Release')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -79,11 +79,18 @@ jobs:
           git commit -am "chore: bump marketing version $CURRENT_VERSION -> $NEXT_VERSION"
           git push origin "$BRANCH_NAME" --force
 
-          # develop 브랜치로 PR 자동 생성
-          gh pr create \
-            --base develop \
-            --head "$BRANCH_NAME" \
-            --title "🍀 Chore: bump marketing version to $NEXT_VERSION" \
-            --body "배포(v$CURRENT_VERSION) 머지 완료에 따라 develop 브랜치의 마케팅 버전을 $NEXT_VERSION(으)로 자동 업데이트합니다." || echo "PR already exists"
+          # develop 브랜치로 향하는 동일 브랜치의 열린 PR이 있는지 사전 확인
+          EXISTING_PR=$(gh pr list --base develop --head "$BRANCH_NAME" --state open --json number --jq '.[0].number')
+
+          if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+            echo "PR already exists (#$EXISTING_PR) for $BRANCH_NAME. Skipping creation."
+          else
+            echo "Creating PR for $BRANCH_NAME..."
+            gh pr create \
+              --base develop \
+              --head "$BRANCH_NAME" \
+              --title "🍀 Chore: bump marketing version to $NEXT_VERSION" \
+              --body "배포(v$CURRENT_VERSION) 머지 완료에 따라 develop 브랜치의 마케팅 버전을 $NEXT_VERSION(으)로 자동 업데이트합니다."
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
